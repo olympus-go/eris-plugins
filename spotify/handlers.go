@@ -7,7 +7,6 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
-	_ "net/http/pprof"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -342,7 +341,7 @@ func (p *Plugin) playHandler(discordSession *discordgo.Session, i *discordgo.Int
 		Components(yesNoButtons(uid, true)...).
 		EditWithLog(logger)
 
-	spotSession.playInteractions.Set(uid, playInteraction{trackIds[1:], false, frequency})
+	spotSession.playInteractions.Set(uid, playInteraction{trackIds, false, frequency})
 	logger.Debug().Str("uid", uid).Msg("play interaction created")
 
 	go func() {
@@ -462,7 +461,7 @@ func (p *Plugin) playMessageHandler(discordSession *discordgo.Session, i *discor
 			utils.InteractionResponse(discordSession, i.Interaction).
 				Ephemeral().
 				Message("Something went wrong.").
-				FollowUpCreateWithLog(logger)
+				EditWithLog(logger)
 			return
 		}
 
@@ -486,7 +485,7 @@ func (p *Plugin) playMessageHandler(discordSession *discordgo.Session, i *discor
 			utils.InteractionResponse(discordSession, i.Interaction).
 				Ephemeral().
 				Message("Something went wrong.").
-				FollowUpCreateWithLog(logger)
+				EditWithLog(logger)
 
 			spotSession.playInteractions.Delete(uid)
 
@@ -571,7 +570,7 @@ func (p *Plugin) playlistMessageHandler(discordSession *discordgo.Session, i *di
 
 		utils.InteractionResponse(discordSession, i.Interaction).
 			Ephemeral().
-			Message("Loading playlist :loadingdots:").
+			Message("Fasho. Gimme a sec to get all those added.").
 			EditWithLog(logger)
 
 		trackIds := interaction.trackIds
@@ -1111,9 +1110,18 @@ func (p *Plugin) quizHandler(discordSession *discordgo.Session, i *discordgo.Int
 		return
 	}
 
+	trackIds := results[0].TrackIds()
+	if len(trackIds) < 5 {
+		utils.InteractionResponse(discordSession, i.Interaction).
+			Ephemeral().
+			Message("Playlist too small for a quiz game.").
+			EditWithLog(logger)
+		return
+	}
+
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	quizGame := &quiz{
-		playlist:          results[0].TrackIds(),
+		playlist:          trackIds,
 		questionNumber:    1,
 		previousQuestions: threadsafe.NewMap[int, bool](),
 
@@ -1150,9 +1158,14 @@ func (p *Plugin) quizHandler(discordSession *discordgo.Session, i *discordgo.Int
 		}
 
 		// Close out the join option
+		message := fmt.Sprintf("%s\n```", spotSession.quizGame.startMessage)
+		for _, user := range spotSession.quizGame.scoreboard.Keys() {
+			message += fmt.Sprintf("%s joined.\n", user)
+		}
+		message += "```"
 		components = utils.ActionsRow().Button(buttonBuilder.Enabled(false).Build()).Build()
 		utils.InteractionResponse(discordSession, i.Interaction).
-			Message(quizGame.startMessage).
+			Message(message).
 			Components(components).
 			EditWithLog(logger)
 
@@ -1167,11 +1180,19 @@ func (p *Plugin) quizHandler(discordSession *discordgo.Session, i *discordgo.Int
 		for index := 0; index < quizGame.questions; index++ {
 			if spotSession.quizGame == nil {
 				return
+			} else if len(quizGame.playlist) < 5 {
+				break
 			}
-			quizGame.questionAnswer = quizGame.rng.Intn(5)
 
+			quizGame.questionAnswer = quizGame.rng.Intn(5)
 			tracks := quizGame.getRandomTracks(spotSession.session, 5)
 			quizGame.questionAnswerTrack = tracks[quizGame.questionAnswer]
+
+			trackIndex := slices.Index(quizGame.playlist, quizGame.questionAnswerTrack.Id())
+			if trackIndex != -1 {
+				quizGame.playlist = slices.Delete(quizGame.playlist, trackIndex, trackIndex+1)
+			}
+
 			quizGame.questionResponseTimes = threadsafe.NewMap[string, float64]()
 			for _, username := range quizGame.scoreboard.Keys() {
 				quizGame.questionResponseTimes.Set(username, 16.0)
@@ -1357,10 +1378,12 @@ func (p *Plugin) fileUploadHandler(discordSession *discordgo.Session, message *d
 	uploadTriggerWords := []string{
 		"here",
 		"take",
-		"havethis",
-		"foryou",
+		"have",
+		//"foryou",
 		"download",
 		"save",
+		"hold",
+		"keep",
 		"cp",
 	}
 
@@ -1373,17 +1396,18 @@ func (p *Plugin) fileUploadHandler(discordSession *discordgo.Session, message *d
 		"view",
 		"glance",
 		"eye",
-		"workingwit",
+		//"workingwit",
 		"ls",
 	}
 
 	lowercaseContent := strings.ToLower(message.Content)
-	squishedContent := alphanumericRegex.ReplaceAllString(lowercaseContent, "")
+	contentWords := strings.Fields(lowercaseContent)
 
 	// Upload check
 	if len(message.Attachments) > 0 && len(p.adminIds) > 0 {
 		for _, word := range uploadTriggerWords {
-			if strings.Contains(squishedContent, "george") && strings.Contains(squishedContent, word) {
+			if slices.Contains(contentWords, "george") && slices.Contains(contentWords, word) {
+				//if strings.Contains(squishedContent, "george") && strings.Contains(squishedContent, word) {
 				if !slices.Contains(p.adminIds, message.Author.ID) {
 					m := fmt.Sprintf("<@%s> told me not to accept candy from strangers", p.adminIds[0])
 					_, _ = discordSession.ChannelMessageSend(message.ChannelID, m)
@@ -1421,7 +1445,8 @@ func (p *Plugin) fileUploadHandler(discordSession *discordgo.Session, message *d
 
 	// List Check
 	for _, word := range listTriggerWords {
-		if strings.Contains(squishedContent, "george") && strings.Contains(squishedContent, word) {
+		if slices.Contains(contentWords, "george") && slices.Contains(contentWords, word) {
+			//if strings.Contains(squishedContent, "george") && strings.Contains(squishedContent, word) {
 			entries, _ := os.ReadDir("downloads/")
 			if len(entries) == 0 {
 				_, _ = discordSession.ChannelMessageSend(message.ChannelID, "I don't have anything :pleading_face:")

@@ -40,9 +40,9 @@ type quiz struct {
 }
 
 // validatePlaylist checks if the playlist is still in a good state.
-func (s *quiz) validatePlaylist() bool {
-	return len(s.playlist)-s.previousQuestions.Len() < 5
-}
+//func (s *quiz) validatePlaylist() bool {
+//	return s.playlist.Len()len(s.playlist)-s.previousQuestions.Len() < 5
+//}
 
 func (s *quiz) getRandomTracks(player *spotify.Session, n int) []spotify.Track {
 	if s.rng == nil {
@@ -56,12 +56,12 @@ func (s *quiz) getRandomTracks(player *spotify.Session, n int) []spotify.Track {
 
 	var tracks []spotify.Track
 	for key, _ := range randomIndexes {
-		track, err := player.GetTrackById(s.playlist[key])
+		t, err := player.GetTrackById(s.playlist[key])
 		if err != nil {
 			return nil
 		}
 
-		tracks = append(tracks, track)
+		tracks = append(tracks, t)
 	}
 
 	return tracks
@@ -152,7 +152,7 @@ func (s *quiz) generateQuestionWinner() string {
 	if noWinner {
 		message += fmt.Sprintf("Y'all are dumb :unamused:\n```")
 	} else {
-		message += fmt.Sprintf("%s answered the fastest <:gottagofast:1013862480478474280>\n```", keys[0])
+		message += fmt.Sprintf("%s answered the fastest <:gottagofast:1079304836534784022>\n```", keys[0])
 	}
 
 	for i := 0; i < len(keys); i++ {
