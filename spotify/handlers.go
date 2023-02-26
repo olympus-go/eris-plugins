@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/exp/slices"
+
 	"github.com/eolso/discordgo"
 	"github.com/eolso/threadsafe"
 	"github.com/olympus-go/apollo"
@@ -1382,34 +1384,36 @@ func (p *Plugin) fileUploadHandler(discordSession *discordgo.Session, message *d
 	if len(message.Attachments) > 0 {
 		for _, word := range uploadTriggerWords {
 			if strings.Contains(squishedContent, "george") && strings.Contains(squishedContent, word) {
-				if message.Author.ID == "404108775935442944" || message.Author.ID == "154827595186307072" {
-					for _, attachment := range message.Attachments {
-						path := filepath.Join("downloads", attachment.Filename)
-						out, err := os.Create(path)
-						if err != nil {
-							p.logger.Error().Err(err).Str("path", path).Msg("failed to create file")
-							return
-						}
-
-						resp, err := http.Get(attachment.URL)
-						if err != nil {
-							p.logger.Error().Err(err).Str("url", attachment.URL).Msg("failed to download file")
-							return
-						}
-
-						if _, err = io.Copy(out, resp.Body); err != nil {
-							p.logger.Error().Err(err).Str("path", path).Msg("failed to copy file")
-						}
-
-						_ = out.Close()
-						_ = resp.Body.Close()
-					}
-					_, _ = discordSession.ChannelMessageSend(message.ChannelID, "omnomnomnom delicioso :yum:")
-					return
-				} else {
-					_, _ = discordSession.ChannelMessageSend(message.ChannelID, "<@404108775935442944> told me not to accept candy from strangers")
-					return
+				if !slices.Contains(p.adminIds, message.Author.ID) {
+					break
 				}
+
+				for _, attachment := range message.Attachments {
+					path := filepath.Join("downloads", attachment.Filename)
+					out, err := os.Create(path)
+					if err != nil {
+						p.logger.Error().Err(err).Str("path", path).Msg("failed to create file")
+						return
+					}
+
+					resp, err := http.Get(attachment.URL)
+					if err != nil {
+						p.logger.Error().Err(err).Str("url", attachment.URL).Msg("failed to download file")
+						return
+					}
+
+					if _, err = io.Copy(out, resp.Body); err != nil {
+						p.logger.Error().Err(err).Str("path", path).Msg("failed to copy file")
+					}
+
+					_ = out.Close()
+					_ = resp.Body.Close()
+				}
+				_, _ = discordSession.ChannelMessageSend(message.ChannelID, "omnomnomnom delicioso :yum:")
+				return
+			} else {
+				_, _ = discordSession.ChannelMessageSend(message.ChannelID, "<@404108775935442944> told me not to accept candy from strangers")
+				return
 			}
 		}
 	}
