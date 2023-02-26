@@ -571,7 +571,7 @@ func (p *Plugin) playlistMessageHandler(discordSession *discordgo.Session, i *di
 
 		utils.InteractionResponse(discordSession, i.Interaction).
 			Ephemeral().
-			Message("Enqueuing playlist :loadingdots:").
+			Message("Loading playlist :loadingdots:").
 			EditWithLog(logger)
 
 		trackIds := interaction.trackIds
@@ -1381,10 +1381,12 @@ func (p *Plugin) fileUploadHandler(discordSession *discordgo.Session, message *d
 	squishedContent := alphanumericRegex.ReplaceAllString(lowercaseContent, "")
 
 	// Upload check
-	if len(message.Attachments) > 0 {
+	if len(message.Attachments) > 0 && len(p.adminIds) > 0 {
 		for _, word := range uploadTriggerWords {
 			if strings.Contains(squishedContent, "george") && strings.Contains(squishedContent, word) {
 				if !slices.Contains(p.adminIds, message.Author.ID) {
+					m := fmt.Sprintf("<@%s> told me not to accept candy from strangers", p.adminIds[0])
+					_, _ = discordSession.ChannelMessageSend(message.ChannelID, m)
 					break
 				}
 
@@ -1409,10 +1411,9 @@ func (p *Plugin) fileUploadHandler(discordSession *discordgo.Session, message *d
 					_ = out.Close()
 					_ = resp.Body.Close()
 				}
+
 				_, _ = discordSession.ChannelMessageSend(message.ChannelID, "omnomnomnom delicioso :yum:")
-				return
-			} else {
-				_, _ = discordSession.ChannelMessageSend(message.ChannelID, "<@404108775935442944> told me not to accept candy from strangers")
+
 				return
 			}
 		}
