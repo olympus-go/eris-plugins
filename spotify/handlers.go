@@ -299,7 +299,11 @@ func (p *Plugin) playHandler(discordSession *discordgo.Session, i *discordgo.Int
 			Message(message).
 			EditWithLog(logger)
 
-		spotSession.playInteractions.Set(uid, playInteraction{trackIds, true, frequency})
+		spotSession.playInteractions.Set(uid, playInteraction{
+			trackIds:   trackIds,
+			isPlaylist: true,
+			frequency:  frequency,
+		})
 		logger.Debug().Str("uid", uid).Msg("play interaction created")
 
 		return
@@ -341,12 +345,17 @@ func (p *Plugin) playHandler(discordSession *discordgo.Session, i *discordgo.Int
 		Components(yesNoButtons(uid, true)...).
 		EditWithLog(logger)
 
-	spotSession.playInteractions.Set(uid, playInteraction{trackIds, false, frequency})
+	spotSession.playInteractions.Set(uid, playInteraction{
+		trackIds:   trackIds,
+		isPlaylist: false,
+		frequency:  frequency,
+	})
 	logger.Debug().Str("uid", uid).Msg("play interaction created")
 
 	go func() {
 		time.Sleep(60 * time.Second)
 		if _, ok = spotSession.playInteractions.Get(uid); ok {
+			utils.InteractionResponse(discordSession, i.Interaction).DeleteWithLog(logger)
 			spotSession.playInteractions.Delete(uid)
 			logger.Debug().Str("uid", uid).Msg("play interaction timed out")
 		}
@@ -379,7 +388,7 @@ func (p *Plugin) playMessageHandler(discordSession *discordgo.Session, i *discor
 
 	utils.InteractionResponse(discordSession, i.Interaction).
 		Ephemeral().
-		Deferred().
+		DeferredUpdate().
 		SendWithLog(logger)
 
 	messageData := i.MessageComponentData()
@@ -528,7 +537,7 @@ func (p *Plugin) playlistMessageHandler(discordSession *discordgo.Session, i *di
 
 	utils.InteractionResponse(discordSession, i.Interaction).
 		Ephemeral().
-		Deferred().
+		DeferredUpdate().
 		SendWithLog(logger)
 
 	messageData := i.MessageComponentData()
@@ -1400,7 +1409,7 @@ func (p *Plugin) fileUploadHandler(discordSession *discordgo.Session, message *d
 		"ls",
 	}
 
-	lowercaseContent := strings.ToLower(message.Content)
+	lowercaseContent := strings.ToLower(alphanumericRegex.ReplaceAllString(message.Content, ""))
 	contentWords := strings.Fields(lowercaseContent)
 
 	// Upload check
