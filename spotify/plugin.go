@@ -206,7 +206,7 @@ func (p *Plugin) fileUploadHandlerInit() {
 		p.logger.Error().Err(err).Msg("failed to create downloads dir")
 	}
 
-	alphanumericRegex, err = regexp.Compile(`[^a-zA-Z0-9]+`)
+	alphanumericRegex, err = regexp.Compile(`[^a-zA-Z0-9 ]+`)
 	if err != nil {
 		p.logger.Error().Err(err).Msg("failed to compile regex")
 	}
