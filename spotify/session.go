@@ -24,6 +24,7 @@ type track struct {
 type playInteraction struct {
 	trackIds   []string
 	isPlaylist bool
+	position   int
 	frequency  int
 }
 

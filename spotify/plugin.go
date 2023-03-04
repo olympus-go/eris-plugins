@@ -10,6 +10,7 @@ import (
 	"github.com/eolso/threadsafe"
 	"github.com/olympus-go/apollo"
 	"github.com/olympus-go/apollo/spotify"
+	"github.com/olympus-go/eris/utils"
 	"github.com/rs/zerolog"
 )
 
@@ -22,18 +23,18 @@ type Plugin struct {
 	callback     string
 	clientId     string
 	clientSecret string
-	adminIds     []string
+	config       Config
 	logger       zerolog.Logger
 }
 
 // NewPlugin creates a new spotify.Plugin. If no logging is desired, a zerolog.Nop() should be supplied.
-func NewPlugin(logger zerolog.Logger, callback string, clientId string, clientSecret string, adminIds ...string) *Plugin {
+func NewPlugin(logger zerolog.Logger, callback string, clientId string, clientSecret string, config Config) *Plugin {
 	plugin := Plugin{
 		sessions:     threadsafe.NewMap[string, *session](),
 		callback:     callback,
 		clientId:     clientId,
 		clientSecret: clientSecret,
-		adminIds:     adminIds,
+		config:       config,
 		logger:       logger.With().Str("plugin", "spotify").Logger(),
 	}
 
@@ -67,18 +68,25 @@ func (p *Plugin) Commands() map[string]*discordgo.ApplicationCommand {
 		Description: "Spotify discord connector",
 		Options: []*discordgo.ApplicationCommandOption{
 			{
-				Name:        "play",
-				Description: "Plays a specified song",
+				Name:        p.config.PlayCommand.Alias,
+				Description: p.config.PlayCommand.Description,
 				Options: []*discordgo.ApplicationCommandOption{
 					{
-						Name:        "query",
-						Description: "Search query or spotify url",
+						Name:        p.config.PlayCommand.QueryOption.Alias,
+						Description: p.config.PlayCommand.QueryOption.Description,
 						Type:        discordgo.ApplicationCommandOptionString,
 						Required:    true,
 					},
 					{
-						Name:        "remix",
-						Description: "You want people to know you watch anime",
+						Name:        p.config.PlayCommand.PositionOption.Alias,
+						Description: p.config.PlayCommand.PositionOption.Description,
+						Type:        discordgo.ApplicationCommandOptionInteger,
+						Required:    false,
+						MinValue:    utils.PointerTo(1.0),
+					},
+					{
+						Name:        p.config.PlayCommand.RemixOption.Alias,
+						Description: p.config.PlayCommand.RemixOption.Description,
 						Type:        discordgo.ApplicationCommandOptionInteger,
 						Required:    false,
 						Choices: []*discordgo.ApplicationCommandOptionChoice{
@@ -191,7 +199,7 @@ func (p *Plugin) newSession(guildId string) *session {
 		playInteractions: threadsafe.NewMap[string, playInteraction](),
 		framesProcessed:  0,
 		voiceConnection:  nil,
-		adminIds:         p.adminIds,
+		adminIds:         p.config.AdminIds,
 		ctx:              ctx,
 		cancel:           cancel,
 		logger:           p.logger,
