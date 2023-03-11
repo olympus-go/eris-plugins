@@ -1,15 +1,11 @@
 package spotify
 
 import (
-	"context"
 	"os"
-	"path/filepath"
 	"regexp"
 
 	"github.com/eolso/discordgo"
 	"github.com/eolso/threadsafe"
-	"github.com/olympus-go/apollo"
-	"github.com/olympus-go/apollo/spotify"
 	"github.com/olympus-go/eris/utils"
 	"github.com/rs/zerolog"
 )
@@ -19,23 +15,17 @@ const queryLimit = 10
 var alphanumericRegex *regexp.Regexp
 
 type Plugin struct {
-	sessions     *threadsafe.Map[string, *session]
-	callback     string
-	clientId     string
-	clientSecret string
-	config       Config
-	logger       zerolog.Logger
+	sessions *threadsafe.Map[string, *session]
+	config   *Config
+	logger   zerolog.Logger
 }
 
 // NewPlugin creates a new spotify.Plugin. If no logging is desired, a zerolog.Nop() should be supplied.
-func NewPlugin(logger zerolog.Logger, callback string, clientId string, clientSecret string, config Config) *Plugin {
+func NewPlugin(config *Config, logger zerolog.Logger) *Plugin {
 	plugin := Plugin{
-		sessions:     threadsafe.NewMap[string, *session](),
-		callback:     callback,
-		clientId:     clientId,
-		clientSecret: clientSecret,
-		config:       config,
-		logger:       logger.With().Str("plugin", "spotify").Logger(),
+		sessions: threadsafe.NewMap[string, *session](),
+		config:   config,
+		logger:   logger.With().Str("plugin", "spotify").Logger(),
 	}
 
 	plugin.fileUploadHandlerInit()
@@ -64,12 +54,14 @@ func (p *Plugin) Commands() map[string]*discordgo.ApplicationCommand {
 	commands := make(map[string]*discordgo.ApplicationCommand)
 
 	commands["spotify_cmd"] = &discordgo.ApplicationCommand{
-		Name:        "spotify",
-		Description: "Spotify discord connector",
+		Name:        p.config.Alias,
+		Description: p.config.Description,
+		Type:        discordgo.ChatApplicationCommand,
 		Options: []*discordgo.ApplicationCommandOption{
 			{
 				Name:        p.config.PlayCommand.Alias,
 				Description: p.config.PlayCommand.Description,
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
 				Options: []*discordgo.ApplicationCommandOption{
 					{
 						Name:        p.config.PlayCommand.QueryOption.Alias,
@@ -101,75 +93,82 @@ func (p *Plugin) Commands() map[string]*discordgo.ApplicationCommand {
 						},
 					},
 				},
-				Type: discordgo.ApplicationCommandOptionSubCommand,
 			},
 			{
-				Name:        "queue",
-				Description: "Shows the current song queue",
+				Name:        p.config.QueueCommand.Alias,
+				Description: p.config.QueueCommand.Description,
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
 			},
 			{
-				Name:        "join",
-				Description: "Requests the bot to join your voice channel",
+				Name:        p.config.JoinCommand.Alias,
+				Description: p.config.JoinCommand.Description,
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
 			},
 			{
-				Name:        "leave",
-				Description: "Requests the bot to leave the voice channel",
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-			},
-			{
-				Name:        "resume",
-				Description: "Resume playback",
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-			},
-			{
-				Name:        "pause",
-				Description: "Pause the currently playing song",
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-			},
-			{
-				Name:        "next",
-				Description: "Go to the next song",
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-			},
-			{
-				Name:        "previous",
-				Description: "Go back to the previous song",
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-			},
-			{
-				Name:        "remove",
-				Description: "Remove a song from queue",
+				Name:        p.config.LeaveCommand.Alias,
+				Description: p.config.LeaveCommand.Description,
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
 				Options: []*discordgo.ApplicationCommandOption{
 					{
-						Name:        "position",
-						Description: "Queue position of the song to remove",
+						Name:        p.config.LeaveCommand.KeepOption.Alias,
+						Description: p.config.LeaveCommand.KeepOption.Description,
+						Type:        discordgo.ApplicationCommandOptionBoolean,
+						Required:    false,
+					},
+				},
+			},
+			{
+				Name:        p.config.ResumeCommand.Alias,
+				Description: p.config.ResumeCommand.Description,
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+			},
+			{
+				Name:        p.config.PauseCommand.Alias,
+				Description: p.config.PauseCommand.Description,
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+			},
+			{
+				Name:        p.config.NextCommand.Alias,
+				Description: p.config.NextCommand.Description,
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+			},
+			{
+				Name:        p.config.PreviousCommand.Alias,
+				Description: p.config.PreviousCommand.Description,
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+			},
+			{
+				Name:        p.config.RemoveCommand.Alias,
+				Description: p.config.RemoveCommand.Description,
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Options: []*discordgo.ApplicationCommandOption{
+					{
+						Name:        p.config.RemoveCommand.PositionOption.Alias,
+						Description: p.config.RemoveCommand.PositionOption.Description,
 						Type:        discordgo.ApplicationCommandOptionInteger,
 						Required:    true,
 					},
 				},
 			},
 			{
-				Name:        "login",
-				Description: "Connect the bot to your spotify account",
+				Name:        p.config.LoginCommand.Alias,
+				Description: p.config.LoginCommand.Description,
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
 			},
 			{
-				Name:        "quiz",
-				Description: "Start a spotify quiz game",
+				Name:        p.config.QuizCommand.Alias,
+				Description: p.config.QuizCommand.Description,
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
 				Options: []*discordgo.ApplicationCommandOption{
 					{
-						Name:        "playlist",
-						Description: "Link to public playlist to use",
+						Name:        p.config.QuizCommand.PlaylistOption.Alias,
+						Description: p.config.QuizCommand.PlaylistOption.Description,
 						Type:        discordgo.ApplicationCommandOptionString,
 						Required:    true,
 					},
 					{
-						Name:        "questions",
-						Description: "Number of questions to play (default = 10)",
+						Name:        p.config.QuizCommand.QuestionsOption.Alias,
+						Description: p.config.QuizCommand.QuestionsOption.Description,
 						Type:        discordgo.ApplicationCommandOptionInteger,
 						Required:    false,
 					},
@@ -182,30 +181,12 @@ func (p *Plugin) Commands() map[string]*discordgo.ApplicationCommand {
 }
 
 func (p *Plugin) Intents() []discordgo.Intent {
-
-	return nil
-}
-
-func (p *Plugin) newSession(guildId string) *session {
-	sessionConfig := spotify.DefaultSessionConfig()
-	sessionConfig.ConfigHomeDir = filepath.Join(sessionConfig.ConfigHomeDir, guildId)
-	sessionConfig.OAuthCallback = p.callback
-
-	ctx, cancel := context.WithCancel(context.Background())
-
-	spotSession := &session{
-		session:          spotify.NewSession(sessionConfig),
-		player:           apollo.NewPlayer(context.Background(), apollo.PlayerConfig{}, p.logger),
-		playInteractions: threadsafe.NewMap[string, playInteraction](),
-		framesProcessed:  0,
-		voiceConnection:  nil,
-		adminIds:         p.config.AdminIds,
-		ctx:              ctx,
-		cancel:           cancel,
-		logger:           p.logger,
+	return []discordgo.Intent{
+		discordgo.IntentsGuilds,
+		discordgo.IntentsGuildMessages,
+		discordgo.IntentsGuildVoiceStates,
+		discordgo.IntentMessageContent,
 	}
-
-	return spotSession
 }
 
 func (p *Plugin) fileUploadHandlerInit() {

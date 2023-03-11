@@ -2,6 +2,7 @@ package spotify
 
 import (
 	"context"
+	"time"
 
 	"github.com/eolso/discordgo"
 	"github.com/eolso/threadsafe"
@@ -22,10 +23,11 @@ type track struct {
 }
 
 type playInteraction struct {
-	trackIds   []string
-	isPlaylist bool
-	position   int
-	frequency  int
+	trackIds []string
+	// playlistName is set when a playlist was sent. "" == not a playlist.
+	playlistName string
+	position     int
+	frequency    int
 }
 
 type session struct {
@@ -33,23 +35,50 @@ type session struct {
 	player           *apollo.Player
 	playInteractions *threadsafe.Map[string, playInteraction]
 	quizGame         *quiz
-	framesProcessed  int
 	voiceConnection  *discordgo.VoiceConnection
 	adminIds         []string
-	logger           zerolog.Logger
-	ctx              context.Context
 	cancel           context.CancelFunc
 }
 
+func newSession(sessionConfig spotify.SessionConfig, logger zerolog.Logger, adminIds ...string) *session {
+	spotSession := &session{
+		session:          spotify.NewSession(sessionConfig),
+		player:           apollo.NewPlayer(context.Background(), apollo.PlayerConfig{}, logger),
+		playInteractions: threadsafe.NewMap[string, playInteraction](),
+		voiceConnection:  nil,
+		adminIds:         adminIds,
+	}
+
+	return spotSession
+}
+
 func (s *session) start() {
+	var ctx context.Context
+	ctx, s.cancel = context.WithCancel(context.Background())
 	out := s.player.Out()
+
+	// Wait until the voice channel becomes available
+	for s.voiceConnection == nil {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			time.Sleep(1 * time.Millisecond)
+		}
+	}
+
+	// Pray that it didn't become unavailable in that instant
+	voiceSend := s.voiceConnection.OpusSend
+
 	for {
 		select {
-		case <-s.ctx.Done():
+		case <-ctx.Done():
 			return
 		case b := <-out:
-			if s.voiceConnection != nil {
-				s.voiceConnection.OpusSend <- b
+			select {
+			case <-ctx.Done():
+				return
+			case voiceSend <- b:
 			}
 		}
 	}
