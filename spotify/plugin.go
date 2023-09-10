@@ -4,7 +4,7 @@ import (
 	"os"
 	"regexp"
 
-	"github.com/eolso/discordgo"
+	"github.com/bwmarrin/discordgo"
 	"github.com/eolso/threadsafe"
 	"github.com/olympus-go/eris/utils"
 	"github.com/rs/zerolog"

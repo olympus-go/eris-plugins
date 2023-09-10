@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eolso/discordgo"
+	"github.com/bwmarrin/discordgo"
 	"github.com/eolso/threadsafe"
 	"github.com/olympus-go/apollo"
 	"github.com/olympus-go/apollo/spotify"
@@ -130,10 +130,19 @@ func (p *Plugin) joinHandler(discordSession *discordgo.Session, i *discordgo.Int
 		}
 	}
 
+	// Attempt to connect to the voice channel. Sometimes this will timeout after joining, so retry a few times if that
+	// happens.
 	var err error
-	spotSession.voiceConnection, err = discordSession.ChannelVoiceJoin(i.GuildID, voiceId, false, true)
+	for retries := 0; retries < 3; retries++ {
+		spotSession.voiceConnection, err = discordSession.ChannelVoiceJoin(i.GuildID, voiceId, false, true)
+		if err == nil {
+			break
+		}
+		_ = spotSession.voiceConnection.Disconnect()
+	}
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to join voice channel")
+		_ = spotSession.voiceConnection.Disconnect()
 		utils.InteractionResponse(discordSession, i.Interaction).
 			Ephemeral().
 			Message(p.config.GlobalResponses.GenericError).

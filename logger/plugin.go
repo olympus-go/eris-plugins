@@ -1,7 +1,7 @@
 package logger
 
 import (
-	"github.com/eolso/discordgo"
+	"github.com/bwmarrin/discordgo"
 	"github.com/rs/zerolog"
 )
 

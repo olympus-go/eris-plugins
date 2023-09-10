@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eolso/discordgo"
+	"github.com/bwmarrin/discordgo"
 	"github.com/eolso/threadsafe"
 	"github.com/olympus-go/apollo/spotify"
 	"github.com/olympus-go/eris/utils"
