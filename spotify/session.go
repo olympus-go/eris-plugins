@@ -4,9 +4,12 @@ import (
 	"context"
 	"time"
 
-	"github.com/eolso/discordgo"
+	"github.com/bwmarrin/discordgo"
 	"github.com/eolso/threadsafe"
 	"github.com/olympus-go/apollo"
+	"github.com/olympus-go/apollo/ffmpeg"
+	"github.com/olympus-go/apollo/ffmpeg/formats"
+	"github.com/olympus-go/apollo/ogg"
 	"github.com/olympus-go/apollo/spotify"
 	"github.com/rs/zerolog"
 )
@@ -41,15 +44,28 @@ type session struct {
 }
 
 func newSession(sessionConfig spotify.SessionConfig, logger zerolog.Logger, adminIds ...string) *session {
-	spotSession := &session{
+	opts := ffmpeg.Options{
+		Decoder:          nil,
+		Encoder:          formats.DiscordOpusFormat(),
+		Input:            ffmpeg.Stdin,
+		Output:           ffmpeg.Stdout,
+		Channels:         "2",
+		FrameRate:        "48000",
+		Bitrate:          "64000",
+		CompressionLevel: "10",
+	}
+
+	codec := ffmpeg.New(opts).WithCodec(&ogg.Decoder{})
+	playerConfig := apollo.PlayerConfig{PacketBuffer: ogg.MaxPageSize}
+	player := apollo.NewPlayer(context.Background(), playerConfig, logger).WithCodec(codec)
+
+	return &session{
 		session:          spotify.NewSession(sessionConfig),
-		player:           apollo.NewPlayer(context.Background(), apollo.PlayerConfig{}, logger),
+		player:           player,
 		playInteractions: threadsafe.NewMap[string, playInteraction](),
 		voiceConnection:  nil,
 		adminIds:         adminIds,
 	}
-
-	return spotSession
 }
 
 func (s *session) start() {
