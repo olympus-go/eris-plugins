@@ -2,6 +2,7 @@ package spotify
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -11,7 +12,6 @@ import (
 	"github.com/olympus-go/apollo/ffmpeg/formats"
 	"github.com/olympus-go/apollo/ogg"
 	"github.com/olympus-go/apollo/spotify"
-	"github.com/rs/zerolog"
 )
 
 const (
@@ -43,7 +43,7 @@ type session struct {
 	cancel           context.CancelFunc
 }
 
-func newSession(sessionConfig spotify.SessionConfig, logger zerolog.Logger, adminIds ...string) *session {
+func newSession(sessionConfig spotify.SessionConfig, h slog.Handler, adminIds ...string) *session {
 	opts := ffmpeg.Options{
 		Decoder:          nil,
 		Encoder:          formats.DiscordOpusFormat(),
@@ -57,10 +57,10 @@ func newSession(sessionConfig spotify.SessionConfig, logger zerolog.Logger, admi
 
 	codec := ffmpeg.New(opts).WithCodec(&ogg.Decoder{})
 	playerConfig := apollo.PlayerConfig{PacketBuffer: ogg.MaxPageSize}
-	player := apollo.NewPlayer(context.Background(), playerConfig, logger).WithCodec(codec)
+	player := apollo.NewPlayer(playerConfig, h).WithCodec(codec)
 
 	return &session{
-		session:          spotify.NewSession(sessionConfig),
+		session:          spotify.NewSession(sessionConfig, h),
 		player:           player,
 		playInteractions: threadsafe.NewMap[string, playInteraction](),
 		voiceConnection:  nil,

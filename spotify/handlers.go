@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"math/rand"
 	"net/http"
 	"os"
@@ -62,6 +63,8 @@ func (p *Plugin) spotifyHandler(discordSession *discordgo.Session, i *discordgo.
 			p.loginHandler(discordSession, i)
 		case "quiz":
 			p.quizHandler(discordSession, i)
+		case "listify":
+			p.listifyHandler(discordSession, i)
 		}
 	case discordgo.InteractionMessageComponent:
 		switch {
@@ -78,19 +81,20 @@ func (p *Plugin) spotifyHandler(discordSession *discordgo.Session, i *discordgo.
 }
 
 func (p *Plugin) joinHandler(discordSession *discordgo.Session, i *discordgo.InteractionCreate) {
-	logger := p.logger.With().
-		Str("command", utils.CommandDataString(i.ApplicationCommandData())).
-		Interface("user", utils.GetInteractionUser(i.Interaction)).
-		Logger()
+	logger := p.logger.With(
+		slog.String("command", utils.CommandDataString(i.ApplicationCommandData())),
+		slog.Any("user", utils.GetInteractionUser(i.Interaction)),
+	)
 
 	// If the session for the guild doesn't already exist, create it
 	spotSession, ok := p.sessions.Get(i.Interaction.GuildID)
 	if !ok {
-		logger.Debug().Str("guild_id", i.Interaction.GuildID).Msg("creating new spotify session for guild")
+		logger.Debug("creating new spotify session for guild", slog.String("guild_id", i.Interaction.GuildID))
+
 		sessionConfig := spotify.DefaultSessionConfig()
 		sessionConfig.ConfigHomeDir = filepath.Join(sessionConfig.ConfigHomeDir, i.Interaction.GuildID)
 		sessionConfig.OAuthCallback = p.config.SpotifyCallbackUrl
-		spotSession = newSession(sessionConfig, p.logger, p.config.AdminIds...)
+		spotSession = newSession(sessionConfig, p.logger.Handler(), p.config.AdminIds...)
 		p.sessions.Set(i.Interaction.GuildID, spotSession)
 	}
 
@@ -121,7 +125,7 @@ func (p *Plugin) joinHandler(discordSession *discordgo.Session, i *discordgo.Int
 		spotSession.player.Pause()
 		spotSession.stop()
 		if err := spotSession.voiceConnection.Disconnect(); err != nil {
-			logger.Error().Err(err).Msg("failed to disconnect from voice channel")
+			logger.Error("failed to disconnect from voice channel", slog.String("error", err.Error()))
 			utils.InteractionResponse(discordSession, i.Interaction).
 				Ephemeral().
 				Message(p.config.GlobalResponses.GenericError).
@@ -141,7 +145,7 @@ func (p *Plugin) joinHandler(discordSession *discordgo.Session, i *discordgo.Int
 		_ = spotSession.voiceConnection.Disconnect()
 	}
 	if err != nil {
-		logger.Error().Err(err).Msg("failed to join voice channel")
+		logger.Error("failed to join voice channel", slog.String("error", err.Error()))
 		_ = spotSession.voiceConnection.Disconnect()
 		utils.InteractionResponse(discordSession, i.Interaction).
 			Ephemeral().
@@ -160,10 +164,10 @@ func (p *Plugin) joinHandler(discordSession *discordgo.Session, i *discordgo.Int
 }
 
 func (p *Plugin) leaveHandler(discordSession *discordgo.Session, i *discordgo.InteractionCreate) {
-	logger := p.logger.With().
-		Str("command", utils.CommandDataString(i.ApplicationCommandData())).
-		Interface("user", utils.GetInteractionUser(i.Interaction)).
-		Logger()
+	logger := p.logger.With(
+		slog.String("command", utils.CommandDataString(i.ApplicationCommandData())),
+		slog.Any("user", utils.GetInteractionUser(i.Interaction)),
+	)
 
 	leaveOption := utils.GetCommandOption(i.ApplicationCommandData(), "spotify", "leave")
 	if leaveOption == nil {
@@ -191,7 +195,7 @@ func (p *Plugin) leaveHandler(discordSession *discordgo.Session, i *discordgo.In
 	}
 
 	if err := spotSession.voiceConnection.Disconnect(); err != nil {
-		logger.Error().Err(err).Msg("failed to disconnect from voice channel")
+		logger.Error("failed to disconnect from voice channel", slog.String("error", err.Error()))
 		utils.InteractionResponse(discordSession, i.Interaction).
 			Ephemeral().
 			Message(p.config.GlobalResponses.GenericError).
@@ -203,6 +207,13 @@ func (p *Plugin) leaveHandler(discordSession *discordgo.Session, i *discordgo.In
 	if keepOption := utils.GetCommandOption(*leaveOption, "leave", "keep"); keepOption != nil {
 		keep = keepOption.BoolValue()
 	}
+
+	// TODO make this configurable + better
+	// Save session history somewhere
+	//for _, playable := range spotSession.player.List(true) {
+	//os.Open("")
+	//playable.Name()
+	//}
 
 	spotSession.voiceConnection = nil
 	if !keep {
@@ -218,10 +229,10 @@ func (p *Plugin) leaveHandler(discordSession *discordgo.Session, i *discordgo.In
 }
 
 func (p *Plugin) playHandler(discordSession *discordgo.Session, i *discordgo.InteractionCreate) {
-	logger := p.logger.With().
-		Str("command", utils.CommandDataString(i.ApplicationCommandData())).
-		Interface("user", utils.GetInteractionUser(i.Interaction)).
-		Logger()
+	logger := p.logger.With(
+		slog.String("command", utils.CommandDataString(i.ApplicationCommandData())),
+		slog.Any("user", utils.GetInteractionUser(i.Interaction)),
+	)
 
 	spotSession, ok := p.sessions.Get(i.Interaction.GuildID)
 	if !ok {
@@ -240,8 +251,11 @@ func (p *Plugin) playHandler(discordSession *discordgo.Session, i *discordgo.Int
 				SendWithLog(logger)
 			return
 		}
-		p.logger = p.logger.With().Str("spotify_user", spotSession.session.Username()).Logger()
-		logger = logger.With().Str("spotify_user", spotSession.session.Username()).Logger()
+
+		// Update base logger and this logger to include logged in user
+		// TODO prolly move this logic elsewhere
+		p.logger = p.logger.With(slog.String("spotify_user", spotSession.session.Username()))
+		logger = logger.With(slog.String("spotify_user", spotSession.session.Username()))
 	}
 
 	utils.InteractionResponse(discordSession, i.Interaction).
@@ -251,7 +265,9 @@ func (p *Plugin) playHandler(discordSession *discordgo.Session, i *discordgo.Int
 
 	playOption := utils.GetCommandOption(i.ApplicationCommandData(), "spotify", "play")
 	if playOption == nil {
-		logger.Error().Str("expected", "spotify play [...]").Msg("unexpected command data found for command")
+		logger.Error("unexpected command data found for command",
+			slog.String("expected", "spotify play [...]"),
+		)
 		utils.InteractionResponse(discordSession, i.Interaction).
 			Ephemeral().
 			Message(p.config.GlobalResponses.GenericError).
@@ -261,7 +277,7 @@ func (p *Plugin) playHandler(discordSession *discordgo.Session, i *discordgo.Int
 
 	queryOption := utils.GetCommandOption(*playOption, "play", "query")
 	if queryOption == nil {
-		logger.Error().Str("field", "query").Msg("required field not set")
+		slog.Error("required field not set", slog.String("field", "query"))
 		utils.InteractionResponse(discordSession, i.Interaction).
 			Ephemeral().
 			Message(p.config.GlobalResponses.GenericError).
@@ -316,7 +332,7 @@ func (p *Plugin) playHandler(discordSession *discordgo.Session, i *discordgo.Int
 	if ok && uri.Authority == spotify.PlaylistResourceType {
 		playlists, err := spotSession.session.Search(query).Limit(1).Playlists()
 		if err != nil || len(playlists) == 0 {
-			logger.Error().Err(err).Msg("playlist search failed")
+			logger.Error("playlist search failed", slog.String("error", err.Error()))
 			utils.InteractionResponse(discordSession, i.Interaction).
 				Ephemeral().
 				Message(p.config.GlobalResponses.GenericError).
@@ -342,14 +358,14 @@ func (p *Plugin) playHandler(discordSession *discordgo.Session, i *discordgo.Int
 			playlistName: playlists[0].Name(),
 			frequency:    frequency,
 		})
-		logger.Debug().Str("uid", uid).Msg("play interaction created")
+		logger.Debug("play interaction created", slog.String("uid", uid))
 
 		return
 	}
 
 	trackIds, err := spotSession.session.Search(query).Limit(queryLimit).TrackIds()
 	if err != nil {
-		logger.Error().Err(err).Msg("spotify search failed")
+		logger.Error("spotify search failed", slog.String("error", err.Error()))
 		utils.InteractionResponse(discordSession, i.Interaction).
 			Ephemeral().
 			Message(p.config.GlobalResponses.GenericError).
@@ -367,7 +383,10 @@ func (p *Plugin) playHandler(discordSession *discordgo.Session, i *discordgo.Int
 
 	initialTrack, err := spotSession.session.GetTrackById(trackIds[0])
 	if err != nil {
-		logger.Error().Err(err).Str("id", trackIds[0]).Msg("failed to retrieve track by id")
+		logger.Error("failed to retrieve track by id",
+			slog.String("error", err.Error()),
+			slog.String("id", trackIds[0]),
+		)
 		utils.InteractionResponse(discordSession, i.Interaction).
 			Ephemeral().
 			Message(p.config.GlobalResponses.GenericError).
@@ -389,23 +408,23 @@ func (p *Plugin) playHandler(discordSession *discordgo.Session, i *discordgo.Int
 		position:  position,
 		frequency: frequency,
 	})
-	logger.Debug().Str("uid", uid).Msg("play interaction created")
+	logger.Debug("play interaction created", slog.String("uid", uid))
 
 	go func() {
 		time.Sleep(60 * time.Second)
 		if _, ok = spotSession.playInteractions.Get(uid); ok {
 			utils.InteractionResponse(discordSession, i.Interaction).DeleteWithLog(logger)
 			spotSession.playInteractions.Delete(uid)
-			logger.Debug().Str("uid", uid).Msg("play interaction timed out")
+			logger.Debug("play interaction timed out", slog.String("uid", uid))
 		}
 	}()
 }
 
 func (p *Plugin) playMessageHandler(discordSession *discordgo.Session, i *discordgo.InteractionCreate) {
-	logger := p.logger.With().
-		Interface("message_component", utils.MessageComponentInterface(i.MessageComponentData())).
-		Interface("user", utils.GetInteractionUser(i.Interaction)).
-		Logger()
+	logger := p.logger.With(
+		slog.Any("message_component", utils.MessageComponentInterface(i.MessageComponentData())),
+		slog.Any("user", utils.GetInteractionUser(i.Interaction)),
+	)
 
 	// If the session for the guild doesn't already exist, create it
 	spotSession, ok := p.sessions.Get(i.Interaction.GuildID)
@@ -433,9 +452,9 @@ func (p *Plugin) playMessageHandler(discordSession *discordgo.Session, i *discor
 	messageData := i.MessageComponentData()
 	idSplit := strings.Split(messageData.CustomID, "_")
 	if len(idSplit) != 4 {
-		logger.Error().
-			Str("custom_id", messageData.CustomID).
-			Msg("messageData interaction response had an unknown custom Id")
+		logger.Error("message component data interaction response had an unknown custom ID",
+			slog.String("custom_id", messageData.CustomID),
+		)
 
 		utils.InteractionResponse(discordSession, i.Interaction).
 			Ephemeral().
@@ -459,7 +478,7 @@ func (p *Plugin) playMessageHandler(discordSession *discordgo.Session, i *discor
 	case "yes":
 		interaction, ok := spotSession.playInteractions.Get(uid)
 		if !ok || len(interaction.trackIds) == 0 {
-			logger.Error().Str("uid", uid).Msg("tracks no longer exist for uid")
+			logger.Error("tracks no longer exist for uid", slog.String("uid", uid))
 			utils.InteractionResponse(discordSession, i.Interaction).
 				Ephemeral().
 				Message(p.config.GlobalResponses.GenericError).
@@ -469,7 +488,10 @@ func (p *Plugin) playMessageHandler(discordSession *discordgo.Session, i *discor
 
 		spotTrack, err := spotSession.session.GetTrackById(interaction.trackIds[0])
 		if err != nil {
-			logger.Error().Err(err).Str("trackId", interaction.trackIds[0]).Msg("failed to get track by id")
+			logger.Error("failed to get track by id",
+				slog.String("error", err.Error()),
+				slog.String("trackId", interaction.trackIds[0]),
+			)
 			utils.InteractionResponse(discordSession, i.Interaction).
 				Ephemeral().
 				Message(p.config.GlobalResponses.GenericError).
@@ -509,7 +531,7 @@ func (p *Plugin) playMessageHandler(discordSession *discordgo.Session, i *discor
 	case "no":
 		interaction, ok := spotSession.playInteractions.Get(uid)
 		if !ok || len(interaction.trackIds) == 0 {
-			logger.Error().Str("uid", uid).Msg("tracks no longer exist for uid")
+			logger.Error("tracks no longer exist for uid", slog.String("uid", uid))
 			utils.InteractionResponse(discordSession, i.Interaction).
 				Ephemeral().
 				Message(p.config.GlobalResponses.GenericError).
@@ -517,7 +539,7 @@ func (p *Plugin) playMessageHandler(discordSession *discordgo.Session, i *discor
 			return
 		}
 
-		logger.Debug().Interface("trackId", interaction.trackIds[0]).Msg("user responded no to track")
+		logger.Debug("user responded no to track", slog.Any("track", interaction.trackIds[0]))
 
 		interaction.trackIds = interaction.trackIds[1:]
 		spotSession.playInteractions.Set(uid, interaction)
@@ -533,7 +555,10 @@ func (p *Plugin) playMessageHandler(discordSession *discordgo.Session, i *discor
 
 		t, err := spotSession.session.GetTrackById(interaction.trackIds[0])
 		if err != nil {
-			logger.Error().Err(err).Str("trackId", interaction.trackIds[0]).Msg("failed to get track by id")
+			logger.Error("failed to get track by id",
+				slog.String("error", err.Error()),
+				slog.String("trackId", interaction.trackIds[0]),
+			)
 			utils.InteractionResponse(discordSession, i.Interaction).
 				Ephemeral().
 				Message(p.config.GlobalResponses.GenericError).
@@ -555,10 +580,10 @@ func (p *Plugin) playMessageHandler(discordSession *discordgo.Session, i *discor
 }
 
 func (p *Plugin) playlistMessageHandler(discordSession *discordgo.Session, i *discordgo.InteractionCreate) {
-	logger := p.logger.With().
-		Interface("message_component", utils.MessageComponentInterface(i.MessageComponentData())).
-		Interface("user", utils.GetInteractionUser(i.Interaction)).
-		Logger()
+	logger := p.logger.With(
+		slog.Any("message_component", utils.MessageComponentInterface(i.MessageComponentData())),
+		slog.Any("user", utils.GetInteractionUser(i.Interaction)),
+	)
 
 	// If the session for the guild doesn't already exist, create it
 	spotSession, ok := p.sessions.Get(i.Interaction.GuildID)
@@ -586,9 +611,9 @@ func (p *Plugin) playlistMessageHandler(discordSession *discordgo.Session, i *di
 	messageData := i.MessageComponentData()
 	idSplit := strings.Split(messageData.CustomID, "_")
 	if len(idSplit) != 4 {
-		logger.Error().
-			Str("custom_id", messageData.CustomID).
-			Msg("messageData interaction response had an unknown custom Id")
+		logger.Error("message component data interaction response had an unknown custom ID",
+			slog.String("custom_id", messageData.CustomID),
+		)
 
 		utils.InteractionResponse(discordSession, i.Interaction).
 			Ephemeral().
@@ -612,7 +637,7 @@ func (p *Plugin) playlistMessageHandler(discordSession *discordgo.Session, i *di
 	case "yes", "shuffle":
 		interaction, ok := spotSession.playInteractions.Get(uid)
 		if !ok || len(interaction.trackIds) == 0 {
-			logger.Error().Str("uid", uid).Msg("tracks no longer exist for uid")
+			logger.Error("tracks no longer exist for uid", slog.String("uid", uid))
 			utils.InteractionResponse(discordSession, i.Interaction).
 				Ephemeral().
 				Message(p.config.GlobalResponses.GenericError).
@@ -636,7 +661,10 @@ func (p *Plugin) playlistMessageHandler(discordSession *discordgo.Session, i *di
 		for _, trackId := range trackIds {
 			spotTrack, err := spotSession.session.GetTrackById(trackId)
 			if err != nil {
-				logger.Error().Err(err).Str("trackId", interaction.trackIds[0]).Msg("failed to get track by id")
+				logger.Error("failed to get track by id",
+					slog.String("error", err.Error()),
+					slog.String("trackId", interaction.trackIds[0]),
+				)
 				continue
 			}
 
@@ -658,7 +686,7 @@ func (p *Plugin) playlistMessageHandler(discordSession *discordgo.Session, i *di
 			spotSession.player.Play()
 		}
 
-		logger.Debug().Msg("user enqueued playlist")
+		logger.Debug("user enqueued playlist")
 
 		utils.InteractionResponse(discordSession, i.Interaction).
 			Ephemeral().
@@ -675,10 +703,10 @@ func (p *Plugin) playlistMessageHandler(discordSession *discordgo.Session, i *di
 }
 
 func (p *Plugin) queueHandler(discordSession *discordgo.Session, i *discordgo.InteractionCreate) {
-	logger := p.logger.With().
-		Str("command", utils.CommandDataString(i.ApplicationCommandData())).
-		Interface("user", utils.GetInteractionUser(i.Interaction)).
-		Logger()
+	logger := p.logger.With(
+		slog.String("command", utils.CommandDataString(i.ApplicationCommandData())),
+		slog.Any("user", utils.GetInteractionUser(i.Interaction)),
+	)
 
 	spotSession, ok := p.sessions.Get(i.Interaction.GuildID)
 	if !ok {
@@ -743,10 +771,10 @@ func (p *Plugin) queueHandler(discordSession *discordgo.Session, i *discordgo.In
 }
 
 func (p *Plugin) resumeHandler(discordSession *discordgo.Session, i *discordgo.InteractionCreate) {
-	logger := p.logger.With().
-		Str("command", utils.CommandDataString(i.ApplicationCommandData())).
-		Interface("user", utils.GetInteractionUser(i.Interaction)).
-		Logger()
+	logger := p.logger.With(
+		slog.String("command", utils.CommandDataString(i.ApplicationCommandData())),
+		slog.Any("user", utils.GetInteractionUser(i.Interaction)),
+	)
 
 	spotSession, ok := p.sessions.Get(i.Interaction.GuildID)
 	if !ok {
@@ -774,10 +802,10 @@ func (p *Plugin) resumeHandler(discordSession *discordgo.Session, i *discordgo.I
 }
 
 func (p *Plugin) pauseHandler(discordSession *discordgo.Session, i *discordgo.InteractionCreate) {
-	logger := p.logger.With().
-		Str("command", utils.CommandDataString(i.ApplicationCommandData())).
-		Interface("user", utils.GetInteractionUser(i.Interaction)).
-		Logger()
+	logger := p.logger.With(
+		slog.String("command", utils.CommandDataString(i.ApplicationCommandData())),
+		slog.Any("user", utils.GetInteractionUser(i.Interaction)),
+	)
 
 	spotSession, ok := p.sessions.Get(i.Interaction.GuildID)
 	if !ok {
@@ -805,10 +833,10 @@ func (p *Plugin) pauseHandler(discordSession *discordgo.Session, i *discordgo.In
 }
 
 func (p *Plugin) nextHandler(discordSession *discordgo.Session, i *discordgo.InteractionCreate) {
-	logger := p.logger.With().
-		Str("command", utils.CommandDataString(i.ApplicationCommandData())).
-		Interface("user", utils.GetInteractionUser(i.Interaction)).
-		Logger()
+	logger := p.logger.With(
+		slog.String("command", utils.CommandDataString(i.ApplicationCommandData())),
+		slog.Any("user", utils.GetInteractionUser(i.Interaction)),
+	)
 
 	spotSession, ok := p.sessions.Get(i.Interaction.GuildID)
 	if !ok {
@@ -830,10 +858,10 @@ func (p *Plugin) nextHandler(discordSession *discordgo.Session, i *discordgo.Int
 
 	userId := utils.GetInteractionUserId(i.Interaction)
 	if p.config.RestrictSkips == "true" && !spotSession.checkPermissions(t, userId) {
-		logger.Debug().
-			Str("author_id", t.Metadata()["requesterId"]).
-			Str("track", t.Name()).
-			Msg("user tried to skip a track they don't own")
+		logger.Debug("user tried to skip a track they don't own",
+			slog.String("author_id", t.Metadata()["requesterId"]),
+			slog.String("track", t.Name()),
+		)
 		utils.InteractionResponse(discordSession, i.Interaction).
 			Ephemeral().
 			Message(p.config.GlobalResponses.PermissionDenied).
@@ -841,7 +869,7 @@ func (p *Plugin) nextHandler(discordSession *discordgo.Session, i *discordgo.Int
 		return
 	}
 
-	logger.Debug().Str("track", t.Name()).Msg("user skipped track")
+	logger.Debug("user skipped track", slog.String("track", t.Name()))
 	spotSession.player.Next()
 
 	utils.InteractionResponse(discordSession, i.Interaction).
@@ -851,10 +879,10 @@ func (p *Plugin) nextHandler(discordSession *discordgo.Session, i *discordgo.Int
 }
 
 func (p *Plugin) previousHandler(discordSession *discordgo.Session, i *discordgo.InteractionCreate) {
-	logger := p.logger.With().
-		Str("command", utils.CommandDataString(i.ApplicationCommandData())).
-		Interface("user", utils.GetInteractionUser(i.Interaction)).
-		Logger()
+	logger := p.logger.With(
+		slog.String("command", utils.CommandDataString(i.ApplicationCommandData())),
+		slog.Any("user", utils.GetInteractionUser(i.Interaction)),
+	)
 
 	spotSession, ok := p.sessions.Get(i.Interaction.GuildID)
 	if !ok {
@@ -877,10 +905,10 @@ func (p *Plugin) previousHandler(discordSession *discordgo.Session, i *discordgo
 	if t, ok := spotSession.player.NowPlaying(); ok {
 		userId := utils.GetInteractionUserId(i.Interaction)
 		if p.config.RestrictSkips == "true" && !spotSession.checkPermissions(t, userId) {
-			logger.Debug().
-				Str("author_id", t.Metadata()["requesterId"]).
-				Str("track", t.Name()).
-				Msg("user tried to skip a track they don't own")
+			logger.Debug("user tried to skip a track they don't own",
+				slog.String("author_id", t.Metadata()["requesterId"]),
+				slog.String("track", t.Name()),
+			)
 			utils.InteractionResponse(discordSession, i.Interaction).
 				Ephemeral().
 				Message(p.config.GlobalResponses.PermissionDenied).
@@ -889,7 +917,7 @@ func (p *Plugin) previousHandler(discordSession *discordgo.Session, i *discordgo
 		}
 	}
 
-	logger.Debug().Msg("player changed to previous track")
+	logger.Debug("player changed to previous track")
 	spotSession.player.Previous()
 
 	utils.InteractionResponse(discordSession, i.Interaction).
@@ -899,10 +927,10 @@ func (p *Plugin) previousHandler(discordSession *discordgo.Session, i *discordgo
 }
 
 func (p *Plugin) removeHandler(discordSession *discordgo.Session, i *discordgo.InteractionCreate) {
-	logger := p.logger.With().
-		Str("command", utils.CommandDataString(i.ApplicationCommandData())).
-		Interface("user", utils.GetInteractionUser(i.Interaction)).
-		Logger()
+	logger := p.logger.With(
+		slog.String("command", utils.CommandDataString(i.ApplicationCommandData())),
+		slog.Any("user", utils.GetInteractionUser(i.Interaction)),
+	)
 
 	spotSession, ok := p.sessions.Get(i.Interaction.GuildID)
 	if !ok {
@@ -929,7 +957,10 @@ func (p *Plugin) removeHandler(discordSession *discordgo.Session, i *discordgo.I
 
 	removeOption := utils.GetCommandOption(i.ApplicationCommandData(), "spotify", "remove")
 	if removeOption == nil {
-		logger.Error().Str("expected", "spotify remove [...]").Msg("unexpected command data found for command")
+
+		logger.Error("unexpected command data found for command",
+			slog.String("expected", "spotify remove [...]"),
+		)
 		utils.InteractionResponse(discordSession, i.Interaction).
 			Ephemeral().
 			Message(p.config.GlobalResponses.GenericError).
@@ -939,7 +970,7 @@ func (p *Plugin) removeHandler(discordSession *discordgo.Session, i *discordgo.I
 
 	positionOption := utils.GetCommandOption(*removeOption, "remove", "position")
 	if positionOption == nil {
-		logger.Error().Str("field", "position").Msg("required field not set")
+		logger.Error("required field not set", slog.String("field", "position"))
 		utils.InteractionResponse(discordSession, i.Interaction).
 			Ephemeral().
 			Message(p.config.GlobalResponses.GenericError).
@@ -949,7 +980,7 @@ func (p *Plugin) removeHandler(discordSession *discordgo.Session, i *discordgo.I
 
 	position := int(positionOption.IntValue())
 	if position <= 0 || position > len(queue) {
-		logger.Error().Int("position", position).Msg("invalid position value")
+		logger.Error("invalid position value", slog.Int("position", position))
 		utils.InteractionResponse(discordSession, i.Interaction).
 			Ephemeral().
 			Message(p.config.RemoveCommand.Responses.InvalidPosition).
@@ -965,9 +996,12 @@ func (p *Plugin) removeHandler(discordSession *discordgo.Session, i *discordgo.I
 		return
 	}
 
+	removed := spotSession.player.Get(spotSession.player.Cursor() + position - 1)
 	spotSession.player.Remove(spotSession.player.Cursor() + position - 1)
-
-	logger.Debug().Interface("position", position).Msg("user removed track")
+	logger.Debug("user removed track",
+		slog.Int("position", position),
+		slog.Any("title", removed.Name()),
+	)
 
 	utils.InteractionResponse(discordSession, i.Interaction).
 		Ephemeral().
@@ -976,10 +1010,10 @@ func (p *Plugin) removeHandler(discordSession *discordgo.Session, i *discordgo.I
 }
 
 func (p *Plugin) loginHandler(discordSession *discordgo.Session, i *discordgo.InteractionCreate) {
-	logger := p.logger.With().
-		Str("command", utils.CommandDataString(i.ApplicationCommandData())).
-		Interface("user", utils.GetInteractionUser(i.Interaction)).
-		Logger()
+	logger := p.logger.With(
+		slog.String("command", utils.CommandDataString(i.ApplicationCommandData())),
+		slog.Any("user", utils.GetInteractionUser(i.Interaction)),
+	)
 
 	// If the session for the guild doesn't already exist, create it.
 	spotSession, ok := p.sessions.Get(i.Interaction.GuildID)
@@ -987,7 +1021,7 @@ func (p *Plugin) loginHandler(discordSession *discordgo.Session, i *discordgo.In
 		sessionConfig := spotify.DefaultSessionConfig()
 		sessionConfig.ConfigHomeDir = filepath.Join(sessionConfig.ConfigHomeDir, i.Interaction.GuildID)
 		sessionConfig.OAuthCallback = p.config.SpotifyCallbackUrl
-		spotSession = newSession(sessionConfig, p.logger, p.config.AdminIds...)
+		spotSession = newSession(sessionConfig, p.logger.Handler(), p.config.AdminIds...)
 		p.sessions.Set(i.Interaction.GuildID, spotSession)
 	}
 
@@ -1007,7 +1041,8 @@ func (p *Plugin) loginHandler(discordSession *discordgo.Session, i *discordgo.In
 			Ephemeral().
 			Message(p.config.LoginCommand.Responses.LoginSuccess).
 			SendWithLog(logger)
-		p.logger = p.logger.With().Str("spotify_user", spotSession.session.Username()).Logger()
+
+		p.logger = p.logger.With(slog.String("spotify_user", spotSession.session.Username()))
 		return
 	}
 
@@ -1023,17 +1058,16 @@ func (p *Plugin) loginHandler(discordSession *discordgo.Session, i *discordgo.In
 	go func() {
 		token := spotify.GetOAuthToken()
 		if err := spotSession.session.LoginWithToken("georgetuney", token); err != nil {
-			logger.Error().Msg("spotify login failed")
+			logger.Error("spotify login failed", slog.String("error", err.Error()))
 
 			utils.InteractionResponse(discordSession, i.Interaction).
 				Ephemeral().
 				Message(p.config.LoginCommand.Responses.LoginFail).
 				FollowUpCreateWithLog(logger)
 		} else {
-			logger.Debug().
-				Str("spotify_user", spotSession.session.Username()).
-				Msg("spotify login succeeded")
-			p.logger = p.logger.With().Str("spotify_user", spotSession.session.Username()).Logger()
+			logger.Info("spotify login succeeded", slog.String("spotify_user", spotSession.session.Username()))
+
+			p.logger = p.logger.With(slog.String("spotify_user", spotSession.session.Username()))
 
 			utils.InteractionResponse(discordSession, i.Interaction).
 				Ephemeral().
@@ -1044,10 +1078,10 @@ func (p *Plugin) loginHandler(discordSession *discordgo.Session, i *discordgo.In
 }
 
 func (p *Plugin) loginMessageHandler(discordSession *discordgo.Session, i *discordgo.InteractionCreate) {
-	logger := p.logger.With().
-		Interface("message_component", utils.MessageComponentInterface(i.MessageComponentData())).
-		Interface("user", utils.GetInteractionUser(i.Interaction)).
-		Logger()
+	logger := p.logger.With(
+		slog.Any("message_component", utils.MessageComponentInterface(i.MessageComponentData())),
+		slog.Any("user", utils.GetInteractionUser(i.Interaction)),
+	)
 
 	// If the session for the guild doesn't already exist, create it.
 	spotSession, ok := p.sessions.Get(i.Interaction.GuildID)
@@ -1055,16 +1089,16 @@ func (p *Plugin) loginMessageHandler(discordSession *discordgo.Session, i *disco
 		sessionConfig := spotify.DefaultSessionConfig()
 		sessionConfig.ConfigHomeDir = filepath.Join(sessionConfig.ConfigHomeDir, i.Interaction.GuildID)
 		sessionConfig.OAuthCallback = p.config.SpotifyCallbackUrl
-		spotSession = newSession(sessionConfig, p.logger, p.config.AdminIds...)
+		spotSession = newSession(sessionConfig, p.logger.Handler(), p.config.AdminIds...)
 		p.sessions.Set(i.Interaction.GuildID, spotSession)
 	}
 
 	messageData := i.MessageComponentData()
 	idSplit := strings.Split(messageData.CustomID, "_")
 	if len(idSplit) != 3 {
-		logger.Error().
-			Str("custom_id", messageData.CustomID).
-			Msg("message interaction response had an unknown custom Id")
+		logger.Error("message component data interaction response had an unknown custom ID",
+			slog.String("custom_id", messageData.CustomID),
+		)
 
 		utils.InteractionResponse(discordSession, i.Interaction).
 			Ephemeral().
@@ -1097,7 +1131,7 @@ func (p *Plugin) loginMessageHandler(discordSession *discordgo.Session, i *disco
 					Ephemeral().
 					Message(p.config.LoginCommand.Responses.LoginSuccess).
 					FollowUpCreateWithLog(logger)
-				p.logger = p.logger.With().Str("spotify_user", spotSession.session.Username()).Logger()
+				p.logger = p.logger.With(slog.String("spotify_user", spotSession.session.Username()))
 			}
 		}()
 	} else if action == "no" {
@@ -1109,10 +1143,10 @@ func (p *Plugin) loginMessageHandler(discordSession *discordgo.Session, i *disco
 }
 
 func (p *Plugin) quizHandler(discordSession *discordgo.Session, i *discordgo.InteractionCreate) {
-	logger := p.logger.With().
-		Str("command", utils.CommandDataString(i.ApplicationCommandData())).
-		Interface("user", utils.GetInteractionUser(i.Interaction)).
-		Logger()
+	logger := p.logger.With(
+		slog.String("command", utils.CommandDataString(i.ApplicationCommandData())),
+		slog.Any("user", utils.GetInteractionUser(i.Interaction)),
+	)
 
 	// If the session for the guild doesn't already exist, create it.
 	spotSession, ok := p.sessions.Get(i.Interaction.GuildID)
@@ -1120,7 +1154,7 @@ func (p *Plugin) quizHandler(discordSession *discordgo.Session, i *discordgo.Int
 		sessionConfig := spotify.DefaultSessionConfig()
 		sessionConfig.ConfigHomeDir = filepath.Join(sessionConfig.ConfigHomeDir, i.Interaction.GuildID)
 		sessionConfig.OAuthCallback = p.config.SpotifyCallbackUrl
-		spotSession = newSession(sessionConfig, p.logger, p.config.AdminIds...)
+		spotSession = newSession(sessionConfig, p.logger.Handler(), p.config.AdminIds...)
 		p.sessions.Set(i.Interaction.GuildID, spotSession)
 	}
 
@@ -1156,7 +1190,9 @@ func (p *Plugin) quizHandler(discordSession *discordgo.Session, i *discordgo.Int
 
 	quizOption := utils.GetCommandOption(i.ApplicationCommandData(), "spotify", "quiz")
 	if quizOption == nil {
-		logger.Error().Str("expected", "spotify quiz [...]").Msg("unexpected command data found for command")
+		logger.Error("unexpected command data found for command",
+			slog.String("expected", "spotify quiz [...]"),
+		)
 		utils.InteractionResponse(discordSession, i.Interaction).
 			Ephemeral().
 			Message(p.config.GlobalResponses.GenericError).
@@ -1175,7 +1211,7 @@ func (p *Plugin) quizHandler(discordSession *discordgo.Session, i *discordgo.Int
 			v, _ := option.Value.(float64)
 			questions = int(v)
 		default:
-			logger.Error().Str("unknown_option", option.Name).Msg("interaction received unknown option")
+			logger.Error("interaction received unknown option", slog.String("option", option.Name))
 			utils.InteractionResponse(discordSession, i.Interaction).
 				Ephemeral().
 				Message(p.config.GlobalResponses.GenericError).
@@ -1186,7 +1222,7 @@ func (p *Plugin) quizHandler(discordSession *discordgo.Session, i *discordgo.Int
 
 	results, err := spotSession.session.Search(playlist).Limit(1).Playlists()
 	if err != nil || len(results) == 0 {
-		logger.Error().Err(err).Msg("failed to search playlist")
+		logger.Error("failed to search playlist", slog.String("error", err.Error()))
 		utils.InteractionResponse(discordSession, i.Interaction).
 			Ephemeral().
 			Message("I had trouble finding that playlist :/").
@@ -1297,7 +1333,7 @@ func (p *Plugin) quizHandler(discordSession *discordgo.Session, i *discordgo.Int
 				Response(quizGame.generateQuestion(tracks)).
 				FollowUpCreate()
 			if err != nil {
-				logger.Error().Err(err).Msg("failed to create followup")
+				logger.Error("failed to create followup", slog.String("error", err.Error()))
 			}
 
 			go func() {
@@ -1338,10 +1374,10 @@ func (p *Plugin) quizHandler(discordSession *discordgo.Session, i *discordgo.Int
 }
 
 func (p *Plugin) quizMessageHandler(discordSession *discordgo.Session, i *discordgo.InteractionCreate) {
-	logger := p.logger.With().
-		Interface("message_component", utils.MessageComponentInterface(i.MessageComponentData())).
-		Interface("user", utils.GetInteractionUser(i.Interaction)).
-		Logger()
+	logger := p.logger.With(
+		slog.Any("message_component", utils.MessageComponentInterface(i.MessageComponentData())),
+		slog.Any("user", utils.GetInteractionUser(i.Interaction)),
+	)
 
 	spotSession, ok := p.sessions.Get(i.Interaction.GuildID)
 	if !ok || spotSession.quizGame == nil {
@@ -1412,7 +1448,9 @@ func (p *Plugin) quizMessageHandler(discordSession *discordgo.Session, i *discor
 
 		idSplit := strings.Split(messageData.CustomID, "_")
 		if len(idSplit) != 4 {
-			logger.Error().Msg("message interaction response had an unknown custom Id")
+			logger.Error("message component data interaction response had an unknown custom ID",
+				slog.String("custom_id", messageData.CustomID),
+			)
 			utils.InteractionResponse(discordSession, i.Interaction).
 				Ephemeral().
 				Message(p.config.GlobalResponses.GenericError).
@@ -1422,7 +1460,11 @@ func (p *Plugin) quizMessageHandler(discordSession *discordgo.Session, i *discor
 
 		answer, err := strconv.Atoi(idSplit[3])
 		if err != nil {
-			logger.Error().Err(err).Str("id", idSplit[3]).Msg("failed to convert id to int")
+			logger.Error("failed to convert id to int",
+				slog.String("error", err.Error()),
+				slog.String("id", idSplit[3]),
+			)
+
 			utils.InteractionResponse(discordSession, i.Interaction).
 				Ephemeral().
 				Message(p.config.GlobalResponses.GenericError).
@@ -1452,6 +1494,42 @@ func (p *Plugin) quizMessageHandler(discordSession *discordgo.Session, i *discor
 			Message(message).
 			EditWithLog(logger)
 	}
+}
+
+func (p *Plugin) listifyHandler(discordSession *discordgo.Session, i *discordgo.InteractionCreate) {
+	logger := p.logger.With(
+		slog.String("command", utils.CommandDataString(i.ApplicationCommandData())),
+		slog.Any("user", utils.GetInteractionUser(i.Interaction)),
+	)
+
+	spotSession, ok := p.sessions.Get(i.Interaction.GuildID)
+	if !ok {
+		utils.InteractionResponse(discordSession, i.Interaction).
+			Ephemeral().
+			Message(p.config.GlobalResponses.NotInVoice).
+			SendWithLog(logger)
+		return
+	}
+
+	queue := spotSession.player.List(true)
+	if len(queue) == 0 {
+		utils.InteractionResponse(discordSession, i.Interaction).
+			Ephemeral().
+			Message(p.config.GlobalResponses.EmptyQueue).
+			SendWithLog(logger)
+		return
+	}
+
+	message := "```\n"
+	for idx := range queue {
+		message += fmt.Sprintf("%d) %s - %s (@%s)\n", idx+1, queue[idx].Name(), queue[idx].Artist(), queue[idx].Metadata()["requesterName"])
+	}
+	message += "```"
+
+	utils.InteractionResponse(discordSession, i.Interaction).
+		Ephemeral().
+		Message(message).
+		SendWithLog(logger)
 }
 
 func (p *Plugin) fileUploadHandler(discordSession *discordgo.Session, message *discordgo.MessageCreate) {
@@ -1500,20 +1578,29 @@ func (p *Plugin) fileUploadHandler(discordSession *discordgo.Session, message *d
 					path := filepath.Join("downloads", attachment.Filename)
 					out, err := os.Create(path)
 					if err != nil {
-						p.logger.Error().Err(err).Str("path", path).Msg("failed to create file")
+						p.logger.Error("failed to create file",
+							slog.String("error", err.Error()),
+							slog.String("path", path),
+						)
 						return
 					}
 					defer out.Close()
 
 					resp, err := http.Get(attachment.URL)
 					if err != nil {
-						p.logger.Error().Err(err).Str("url", attachment.URL).Msg("failed to download file")
+						p.logger.Error("failed to download file",
+							slog.String("error", err.Error()),
+							slog.String("url", attachment.URL),
+						)
 						return
 					}
 					defer resp.Body.Close()
 
 					if _, err = io.Copy(out, resp.Body); err != nil {
-						p.logger.Error().Err(err).Str("path", path).Msg("failed to copy file")
+						p.logger.Error("failed to copy file",
+							slog.String("error", err.Error()),
+							slog.String("path", path),
+						)
 					}
 				}
 
@@ -1550,7 +1637,7 @@ func (p *Plugin) fileUploadHandler(discordSession *discordgo.Session, message *d
 	if strings.HasPrefix(lowercaseContent, "george rename") || strings.HasPrefix(lowercaseContent, "george mv") {
 		splitContent := strings.Split(message.Content, " ")
 		if len(splitContent) != 4 {
-			p.logger.Debug().Str("content", message.Content).Msg("rename message was not formatted correctly")
+			p.logger.Error("rename message was not formatted correctly", slog.String("content", message.Content))
 			return
 		}
 
@@ -1559,7 +1646,7 @@ func (p *Plugin) fileUploadHandler(discordSession *discordgo.Session, message *d
 
 		entries, err := os.ReadDir("downloads/")
 		if err != nil {
-			p.logger.Error().Err(err).Msg("failed to read downloads directory")
+			p.logger.Error("failed to read downloads directory", slog.String("error", err.Error()))
 			return
 		}
 		for _, entry := range entries {
@@ -1568,7 +1655,11 @@ func (p *Plugin) fileUploadHandler(discordSession *discordgo.Session, message *d
 				to := strings.TrimSpace(filepath.Join("downloads/", newName))
 
 				if err = os.Rename(from, to); err != nil {
-					p.logger.Error().Str("from", from).Str("to", to).Err(err).Msg("failed to rename file")
+					p.logger.Error("failed to rename file",
+						slog.String("error", err.Error()),
+						slog.String("from", from),
+						slog.String("to", to),
+					)
 					_, _ = discordSession.ChannelMessageSend(message.ChannelID, "I done goofed.")
 					return
 				}
@@ -1586,7 +1677,7 @@ func (p *Plugin) fileUploadHandler(discordSession *discordgo.Session, message *d
 	if strings.HasPrefix(lowercaseContent, "george remove") || strings.HasPrefix(lowercaseContent, "george rm") {
 		splitContent := strings.Split(message.Content, " ")
 		if len(splitContent) != 3 {
-			p.logger.Debug().Str("content", message.Content).Msg("remove message was not formatted correctly")
+			p.logger.Error("remove message was not formatted correctly", slog.String("content", message.Content))
 			return
 		}
 
@@ -1594,7 +1685,7 @@ func (p *Plugin) fileUploadHandler(discordSession *discordgo.Session, message *d
 
 		entries, err := os.ReadDir("downloads/")
 		if err != nil {
-			p.logger.Error().Err(err).Msg("failed to read downloads directory")
+			p.logger.Error("failed to read downloads directory", slog.String("error", err.Error()))
 			return
 		}
 		for _, entry := range entries {
@@ -1602,7 +1693,10 @@ func (p *Plugin) fileUploadHandler(discordSession *discordgo.Session, message *d
 				path := strings.TrimSpace(filepath.Join("downloads/", filename))
 
 				if err = os.Remove(path); err != nil {
-					p.logger.Error().Str("path", path).Err(err).Msg("failed to remove file")
+					p.logger.Error("failed to remove file",
+						slog.String("error", err.Error()),
+						slog.String("path", path),
+					)
 					_, _ = discordSession.ChannelMessageSend(message.ChannelID, "I done goofed.")
 					return
 				}

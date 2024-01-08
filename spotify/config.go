@@ -2,131 +2,134 @@ package spotify
 
 import (
 	_ "embed"
-
-	"github.com/BurntSushi/toml"
+	"encoding/json"
 )
 
-//go:embed default_config.toml
-var defaultConfigStr string
+//go:embed default_config.json
+var DefaultConfigStr string
 
 type Config struct {
-	Alias               string   `toml:"Alias"`
-	Description         string   `toml:"Description"`
-	AdminIds            []string `toml:"AdminIds"`
-	SpotifyCallbackUrl  string   `toml:"-"`
-	SpotifyClientId     string   `toml:"-"`
-	SpotifyClientSecret string   `toml:"-"`
-	RestrictSkips       string   `toml:"RestrictSkips"`
+	Alias               string   `json:"Alias"`
+	Description         string   `json:"Description"`
+	AdminIds            []string `json:"AdminIds"`
+	SpotifyCallbackUrl  string   `json:"-"`
+	SpotifyClientId     string   `json:"-"`
+	SpotifyClientSecret string   `json:"-"`
+	RestrictSkips       string   `json:"RestrictSkips"`
 	GlobalResponses     struct {
-		GenericError     string `toml:"GenericError"`
-		NotInVoice       string `toml:"NotInVoice"`
-		NotLoggedIn      string `toml:"NotLoggedIn"`
-		EmptyQueue       string `toml:"EmptyQueue"`
-		PermissionDenied string `toml:"PermissionDenied"`
-	} `toml:"GlobalResponses"`
+		GenericError     string `json:"GenericError"`
+		NotInVoice       string `json:"NotInVoice"`
+		NotLoggedIn      string `json:"NotLoggedIn"`
+		EmptyQueue       string `json:"EmptyQueue"`
+		PermissionDenied string `json:"PermissionDenied"`
+	} `json:"GlobalResponses"`
 	PlayCommand struct {
-		Alias          string              `toml:"Alias"`
-		Description    string              `toml:"Description"`
-		QueryOption    CommandOptionConfig `toml:"QueryOption"`
-		PositionOption CommandOptionConfig `toml:"PositionOption"`
-		RemixOption    CommandOptionConfig `toml:"RemixOption"`
+		Alias          string              `json:"Alias"`
+		Description    string              `json:"Description"`
+		QueryOption    CommandOptionConfig `json:"QueryOption"`
+		PositionOption CommandOptionConfig `json:"PositionOption"`
+		RemixOption    CommandOptionConfig `json:"RemixOption"`
 		Responses      struct {
-			SongPrompt       string `toml:"SongPrompt"`
-			ListNotAvailable string `toml:"ListNotAvailable"`
-			NoTracksFound    string `toml:"NoTracksFound"`
-			EndOfList        string `toml:"EndOfList"`
-			LoadingPlaylist  string `toml:"LoadingPlaylist"`
-		} `toml:"Responses"`
-	} `toml:"PlayCommand"`
+			SongPrompt       string `json:"SongPrompt"`
+			ListNotAvailable string `json:"ListNotAvailable"`
+			NoTracksFound    string `json:"NoTracksFound"`
+			EndOfList        string `json:"EndOfList"`
+			LoadingPlaylist  string `json:"LoadingPlaylist"`
+		} `json:"Responses"`
+	} `json:"PlayCommand"`
 	QueueCommand struct {
-		Alias       string `toml:"Alias"`
-		Description string `toml:"Description"`
+		Alias       string `json:"Alias"`
+		Description string `json:"Description"`
 		Responses   struct {
-			EmptyQueue string `toml:"EmptyQueue"`
-		} `toml:"Responses"`
-	} `toml:"QueueCommand"`
+			EmptyQueue string `json:"EmptyQueue"`
+		} `json:"Responses"`
+	} `json:"QueueCommand"`
 	JoinCommand struct {
-		Alias       string `toml:"Alias"`
-		Description string `toml:"Description"`
+		Alias       string `json:"Alias"`
+		Description string `json:"Description"`
 		Responses   struct {
-			AlreadyJoined string `toml:"AlreadyJoined"`
-			JoinSuccess   string `toml:"JoinSuccess"`
-		} `toml:"Responses"`
-	} `toml:"JoinCommand"`
+			AlreadyJoined string `json:"AlreadyJoined"`
+			JoinSuccess   string `json:"JoinSuccess"`
+		} `json:"Responses"`
+	} `json:"JoinCommand"`
 	LeaveCommand struct {
-		Alias       string              `toml:"Alias"`
-		Description string              `toml:"Description"`
-		KeepOption  CommandOptionConfig `toml:"KeepOption"`
+		Alias       string              `json:"Alias"`
+		Description string              `json:"Description"`
+		KeepOption  CommandOptionConfig `json:"KeepOption"`
 		Responses   struct {
-			LeaveSuccess string `toml:"LeaveSuccess"`
-		} `toml:"Responses"`
-	} `toml:"LeaveCommand"`
+			LeaveSuccess string `json:"LeaveSuccess"`
+		} `json:"Responses"`
+	} `json:"LeaveCommand"`
 	ResumeCommand struct {
-		Alias       string `toml:"Alias"`
-		Description string `toml:"Description"`
+		Alias       string `json:"Alias"`
+		Description string `json:"Description"`
 		Responses   struct {
-			ResumeSuccess string `toml:"ResumeSuccess"`
-		} `toml:"Responses"`
-	} `toml:"ResumeCommand"`
+			ResumeSuccess string `json:"ResumeSuccess"`
+		} `json:"Responses"`
+	} `json:"ResumeCommand"`
 	PauseCommand struct {
-		Alias       string `toml:"Alias"`
-		Description string `toml:"Description"`
+		Alias       string `json:"Alias"`
+		Description string `json:"Description"`
 		Responses   struct {
-			PauseSuccess string `toml:"PauseSuccess"`
-		} `toml:"Responses"`
-	} `toml:"PauseCommand"`
+			PauseSuccess string `json:"PauseSuccess"`
+		} `json:"Responses"`
+	} `json:"PauseCommand"`
 	NextCommand struct {
-		Alias       string `toml:"Alias"`
-		Description string `toml:"Description"`
+		Alias       string `json:"Alias"`
+		Description string `json:"Description"`
 		Responses   struct {
-			NextSuccess string `toml:"NextSuccess"`
-		} ` toml:"Responses"`
-	} `toml:"NextCommand"`
+			NextSuccess string `json:"NextSuccess"`
+		} ` json:"Responses"`
+	} `json:"NextCommand"`
 	PreviousCommand struct {
-		Alias       string `toml:"Alias"`
-		Description string `toml:"Description"`
+		Alias       string `json:"Alias"`
+		Description string `json:"Description"`
 		Responses   struct {
-			EmptyQueue      string `toml:"EmptyQueue"`
-			PreviousSuccess string `toml:"PreviousSuccess"`
-		} `toml:"Responses"`
-	} `toml:"PreviousCommand"`
+			EmptyQueue      string `json:"EmptyQueue"`
+			PreviousSuccess string `json:"PreviousSuccess"`
+		} `json:"Responses"`
+	} `json:"PreviousCommand"`
 	RemoveCommand struct {
-		Alias          string              `toml:"Alias"`
-		Description    string              `toml:"Description"`
-		PositionOption CommandOptionConfig `toml:"PositionOption"`
+		Alias          string              `json:"Alias"`
+		Description    string              `json:"Description"`
+		PositionOption CommandOptionConfig `json:"PositionOption"`
 		Responses      struct {
-			InvalidPosition string `toml:"InvalidPosition"`
-			RemoveSuccess   string `toml:"RemoveSuccess"`
-		} `toml:"Responses"`
-	} `toml:"RemoveCommand"`
+			InvalidPosition string `json:"InvalidPosition"`
+			RemoveSuccess   string `json:"RemoveSuccess"`
+		} `json:"Responses"`
+	} `json:"RemoveCommand"`
 	LoginCommand struct {
-		Alias       string `toml:"Alias"`
-		Description string `toml:"Description"`
+		Alias       string `json:"Alias"`
+		Description string `json:"Description"`
 		Responses   struct {
-			LoginPrompt     string `toml:"LoginPrompt"`
-			AlreadyLoggedIn string `toml:"AlreadyLoggedIn"`
-			LoginSuccess    string `toml:"LoginSuccess"`
-			LoginFail       string `toml:"LoginFail"`
-			LoginCancel     string `toml:"LoginCancel"`
-		} `toml:"Responses"`
-	} `toml:"LoginCommand"`
+			LoginPrompt     string `json:"LoginPrompt"`
+			AlreadyLoggedIn string `json:"AlreadyLoggedIn"`
+			LoginSuccess    string `json:"LoginSuccess"`
+			LoginFail       string `json:"LoginFail"`
+			LoginCancel     string `json:"LoginCancel"`
+		} `json:"Responses"`
+	} `json:"LoginCommand"`
 	QuizCommand struct {
-		Alias           string              `toml:"Alias"`
-		Description     string              `toml:"Description"`
-		PlaylistOption  CommandOptionConfig `toml:"PlaylistOption"`
-		QuestionsOption CommandOptionConfig `toml:"QuestionsOption"`
-	} `toml:"QuizCommand"`
+		Alias           string              `json:"Alias"`
+		Description     string              `json:"Description"`
+		PlaylistOption  CommandOptionConfig `json:"PlaylistOption"`
+		QuestionsOption CommandOptionConfig `json:"QuestionsOption"`
+	} `json:"QuizCommand"`
+	ListifyCommand struct {
+		Alias       string `json:"Alias"`
+		Description string `json:"Description"`
+	} `json:"ListifyCommand"`
 }
 
 type CommandOptionConfig struct {
-	Alias       string `toml:"Alias"`
-	Description string `toml:"Description"`
+	Alias       string `json:"Alias"`
+	Description string `json:"Description"`
 }
 
 func DefaultConfig() Config {
 	var config Config
 
-	_ = toml.Unmarshal([]byte(defaultConfigStr), &config)
+	_ = json.Unmarshal([]byte(DefaultConfigStr), &config)
 
 	return config
 }

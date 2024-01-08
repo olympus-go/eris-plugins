@@ -1,13 +1,13 @@
 package spotify
 
 import (
+	"log/slog"
 	"os"
 	"regexp"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/eolso/threadsafe"
 	"github.com/olympus-go/eris/utils"
-	"github.com/rs/zerolog"
 )
 
 const queryLimit = 10
@@ -17,15 +17,15 @@ var alphanumericRegex *regexp.Regexp
 type Plugin struct {
 	sessions *threadsafe.Map[string, *session]
 	config   *Config
-	logger   zerolog.Logger
+	logger   *slog.Logger
 }
 
 // NewPlugin creates a new spotify.Plugin. If no logging is desired, a zerolog.Nop() should be supplied.
-func NewPlugin(config *Config, logger zerolog.Logger) *Plugin {
+func NewPlugin(config *Config, h slog.Handler) *Plugin {
 	plugin := Plugin{
 		sessions: threadsafe.NewMap[string, *session](),
 		config:   config,
-		logger:   logger.With().Str("plugin", "spotify").Logger(),
+		logger:   slog.New(h).With(slog.String("plugin", "spotify")),
 	}
 
 	plugin.fileUploadHandlerInit()
@@ -174,6 +174,11 @@ func (p *Plugin) Commands() map[string]*discordgo.ApplicationCommand {
 					},
 				},
 			},
+			{
+				Name:        p.config.ListifyCommand.Alias,
+				Description: p.config.ListifyCommand.Description,
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+			},
 		},
 	}
 
@@ -192,11 +197,15 @@ func (p *Plugin) Intents() []discordgo.Intent {
 func (p *Plugin) fileUploadHandlerInit() {
 	err := os.MkdirAll("downloads", 0744)
 	if err != nil {
-		p.logger.Error().Err(err).Msg("failed to create downloads dir")
+		p.logger.Error("failed to create downloads dir",
+			slog.String("error", err.Error()),
+		)
 	}
 
 	alphanumericRegex, err = regexp.Compile(`[^a-zA-Z0-9 ]+`)
 	if err != nil {
-		p.logger.Error().Err(err).Msg("failed to compile regex")
+		p.logger.Error("failed to compile regex",
+			slog.String("error", err.Error()),
+		)
 	}
 }

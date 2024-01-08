@@ -1,18 +1,21 @@
 package logger
 
 import (
+	"log/slog"
+
 	"github.com/bwmarrin/discordgo"
-	"github.com/rs/zerolog"
 )
 
 type Plugin struct {
-	logger zerolog.Logger
-	level  zerolog.Level
+	logger *slog.Logger
+	level  slog.Level
+	//logger zerolog.Logger
+	//level  zerolog.Level
 }
 
-func NewPlugin(logger zerolog.Logger, level zerolog.Level) *Plugin {
+func NewPlugin(h slog.Handler, level slog.Level) *Plugin {
 	return &Plugin{
-		logger: logger,
+		logger: slog.New(h),
 		level:  level,
 	}
 }
