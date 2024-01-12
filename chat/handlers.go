@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"strings"
 	"time"
 
@@ -88,10 +87,11 @@ func (p *Plugin) chatMessageHandler(discordSession *discordgo.Session, m *discor
 
 	b, _ := json.Marshal(sessionData.Data)
 
-	http.DefaultClient.Timeout = time.Second * 10
-	resp, err := http.Post("http://192.168.0.69:5001/api/v1/generate", "application/json", bytes.NewReader(b))
+	resp, err := p.c.Post("http://192.168.0.69:5001/api/v1/generate", "application/json", bytes.NewReader(b))
 	if err != nil {
-		panic(err)
+		discordSession.ChannelMessageSendReply(m.ChannelID, "I don't want to talk now >.<", m.Reference())
+		p.logger.Error("failed to post to chat endpoint", slog.String("error", err.Error()))
+		return
 	}
 
 	var respData ResponseData
