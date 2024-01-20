@@ -512,7 +512,7 @@ func (p *Plugin) playMessageHandler(discordSession *discordgo.Session, i *discor
 		}
 
 		if interaction.position != -1 {
-			spotSession.player.Insert(interaction.position, t)
+			spotSession.player.Insert(spotSession.player.Cursor()+interaction.position-1, t)
 		} else {
 			spotSession.player.Enqueue(t)
 		}
