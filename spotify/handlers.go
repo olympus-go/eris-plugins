@@ -857,7 +857,7 @@ func (p *Plugin) nextHandler(discordSession *discordgo.Session, i *discordgo.Int
 	}
 
 	userId := utils.GetInteractionUserId(i.Interaction)
-	if p.config.RestrictSkips == "true" && !spotSession.checkPermissions(t, userId) {
+	if strings.ToLower(p.config.RestrictSkips) == "true" && !spotSession.checkPermissions(t, userId) {
 		logger.Debug("user tried to skip a track they don't own",
 			slog.String("author_id", t.Metadata()["requesterId"]),
 			slog.String("track", t.Name()),
