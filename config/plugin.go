@@ -91,6 +91,14 @@ func ConfigApplicationCommandOptions(name string) []*discordgo.ApplicationComman
 					Name:        "get",
 					Description: fmt.Sprintf("Print out the current %s config", name),
 					Type:        discordgo.ApplicationCommandOptionSubCommand,
+					Options: []*discordgo.ApplicationCommandOption{
+						{
+							Name:        "key",
+							Description: "The key of the config setting. An empty value here will return the entire file.",
+							Type:        discordgo.ApplicationCommandOptionString,
+							Required:    false,
+						},
+					},
 				},
 				{
 					Name:        "set",

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -10,7 +11,6 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/olympus-go/eris/utils"
 	"golang.org/x/exp/slices"
-	"gopkg.in/yaml.v3"
 )
 
 var ErrFieldNotExist = errors.New("field does not exist")
@@ -45,13 +45,59 @@ func (p *Plugin) configHandler(discordSession *discordgo.Session, i *discordgo.I
 
 		switch actionOption.Name {
 		case "get":
-			b, err := yaml.Marshal(config.config)
+			b, err := json.MarshalIndent(config.config, "", "  ")
 			if err != nil {
-				p.logger.Error("failed to marshal config as yaml", slog.String("error", err.Error()))
+				p.logger.Error("failed to marshal config as json", slog.String("error", err.Error()))
 				utils.InteractionResponse(discordSession, i.Interaction).
 					Ephemeral().
 					Message("Something went wrong.").
 					SendWithLog(p.logger)
+				return
+			}
+
+			keyOption := utils.GetCommandOption(*actionOption, "get", "key")
+			if keyOption != nil {
+				key := keyOption.StringValue()
+
+				v, err := getConfig(config.config, key)
+				if err != nil && errors.Is(err, ErrFieldNotExist) {
+					utils.InteractionResponse(discordSession, i.Interaction).
+						Ephemeral().
+						Message(fmt.Sprintf("I don't know what \"%s\" is.", key)).
+						SendWithLog(p.logger)
+					return
+				} else if err != nil {
+					utils.InteractionResponse(discordSession, i.Interaction).
+						Ephemeral().
+						Message("Something went wrong.").
+						SendWithLog(p.logger)
+					return
+				}
+
+				var valueString string
+				switch v.(type) {
+				case string:
+					valueString = v.(string)
+				case []string, *[]string:
+					valueString += "["
+					for _, s := range v.([]string) {
+						valueString += s + ", "
+					}
+
+					valueString = strings.TrimSuffix(valueString, ", ") + "]"
+				default:
+					p.logger.Error("failed to parse key")
+					utils.InteractionResponse(discordSession, i.Interaction).
+						Ephemeral().
+						Message("Something went wrong.").
+						SendWithLog(p.logger)
+				}
+
+				utils.InteractionResponse(discordSession, i.Interaction).
+					Ephemeral().
+					Message(fmt.Sprintf("```%s: %s```", key, valueString)).
+					SendWithLog(p.logger)
+
 				return
 			}
 
@@ -134,6 +180,44 @@ func (p *Plugin) configHandler(discordSession *discordgo.Session, i *discordgo.I
 			config.fn()
 		}
 	}
+}
+
+func getConfig(t any, key string) (any, error) {
+	v := make(map[string]any)
+
+	if err := mapstructure.Decode(t, &v); err != nil {
+		return nil, err
+	}
+
+	var fields []string
+	if strings.Contains(key, ".") {
+		fields = strings.Split(strings.TrimSpace(key), ".")
+	} else {
+		fields = []string{key}
+	}
+
+	currentValue := v
+	var ok bool
+	for i, field := range fields {
+		field = strings.TrimSpace(field)
+
+		if _, ok = currentValue[field]; !ok {
+			return nil, ErrFieldNotExist
+		}
+
+		// Set the value when at the end of the split list, otherwise keep traversing the map.
+		if i == len(fields)-1 {
+			return currentValue[field], nil
+		} else {
+			currentValue, ok = currentValue[field].(map[string]any)
+			if !ok {
+				return nil, fmt.Errorf("failed to decode config")
+			}
+		}
+	}
+
+	// This should never happen
+	return nil, ErrFieldNotExist
 }
 
 func setConfig(t any, key string, value string) error {
