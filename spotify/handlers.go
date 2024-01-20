@@ -1520,16 +1520,35 @@ func (p *Plugin) listifyHandler(discordSession *discordgo.Session, i *discordgo.
 		return
 	}
 
+	// Send a deferred message that way we can follow up repeatedly
+	utils.InteractionResponse(discordSession, i.Interaction).
+		Ephemeral().
+		Deferred().
+		SendWithLog(logger)
+
 	message := "```\n"
-	for idx := range queue {
-		message += fmt.Sprintf("%d) %s - %s (@%s)\n", idx+1, queue[idx].Name(), queue[idx].Artist(), queue[idx].Metadata()["requesterName"])
+	for index := 0; index < len(queue); index++ {
+		line := fmt.Sprintf("%d) %s - %s (@%s)\n", index+1, queue[index].Name(), queue[index].Artist(), queue[index].Metadata()["requesterName"])
+
+		// Cut off slightly early before the line limit, just so we never risk not being able to send
+		if len(message)+len(line)+3 >= 1995 {
+			message += "```"
+			utils.InteractionResponse(discordSession, i.Interaction).
+				Ephemeral().
+				Message(message).
+				FollowUpCreateWithLog(logger)
+
+			message = "```\n"
+		}
+
+		message += line
 	}
 	message += "```"
 
 	utils.InteractionResponse(discordSession, i.Interaction).
 		Ephemeral().
 		Message(message).
-		SendWithLog(logger)
+		FollowUpCreateWithLog(logger)
 }
 
 func (p *Plugin) fileUploadHandler(discordSession *discordgo.Session, message *discordgo.MessageCreate) {
