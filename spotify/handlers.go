@@ -1527,7 +1527,7 @@ func (p *Plugin) listifyHandler(discordSession *discordgo.Session, i *discordgo.
 		SendWithLog(logger)
 
 	message := "```\n"
-	for index := 0; index < len(queue); index++ {
+	for index := range queue {
 		line := fmt.Sprintf("%d) %s - %s (@%s)\n", index+1, queue[index].Name(), queue[index].Artist(), queue[index].Metadata()["requesterName"])
 
 		// Cut off slightly early before the line limit, just so we never risk not being able to send
