@@ -1,0 +1,131 @@
+{
+  "Alias": "spotify",
+  "Description": "Plays spotify tracks in voice channels.",
+  "AdminIds": [],
+  "OAuthCallback": "http://localhost:8888/callback",
+  "RestrictSkips": "false",
+  "GlobalResponses": {
+    "GenericError": "Something went wrong.",
+    "NotInVoice": "I don't think I'm in a voice chat here. ¯\\_(ツ)_/¯",
+    "NotLoggedIn": "Login first before playing.",
+    "EmptyQueue": "Nothing in queue.",
+    "PermissionDenied": "You don't have permissions to change this track."
+  },
+  "PlayCommand": {
+    "Alias": "play",
+    "Description": "Plays a specified song",
+    "QueryOption": {
+      "Alias": "query",
+      "Description": "Search query or spotify url"
+    },
+    "PositionOption": {
+      "Alias": "position",
+      "Description": "Position to insert the song at (default = append)"
+    },
+    "RemixOption": {
+      "Alias": "remix",
+      "Description": "You want people to know you watch anime"
+    },
+    "Responses": {
+      "SongPrompt": "Is this your song?",
+      "ListNotAvailable": "This song list is no longer available. Try searching again.",
+      "NoTracksFound": "No tracks found.",
+      "EndOfList": "That's all of them! Try searching again.",
+      "LoadingPlaylist": "Queueing up playlist <a:loadingdots:1079304806881050644>"
+    }
+  },
+  "QueueCommand": {
+    "Alias": "queue",
+    "Description": "Shows the current song queue",
+    "Responses": {
+      "EmptyQueue": "No songs in queue."
+    }
+  },
+  "JoinCommand": {
+    "Alias": "join",
+    "Description": "Requests the bot to join your voice channel",
+    "Responses": {
+      "AlreadyJoined": "I'm already here!",
+      "JoinSuccess": ":tada:"
+    }
+  },
+  "LeaveCommand": {
+    "Alias": "leave",
+    "Description": "Requests the bot to leave the voice channel",
+    "KeepOption": {
+      "Alias": "keep",
+      "Description": "Don't clear the current running spotify session"
+    },
+    "Responses": {
+      "LeaveSuccess": ":wave:"
+    }
+  },
+  "ResumeCommand": {
+    "Alias": "resume",
+    "Description": "Resume playback",
+    "Responses": {
+      "ResumeSuccess": ":arrow_forward:"
+    }
+  },
+  "PauseCommand": {
+    "Alias": "pause",
+    "Description": "Pause the currently playing song",
+    "Responses": {
+      "PauseSuccess": ":pause_button:"
+    }
+  },
+  "NextCommand": {
+    "Alias": "next",
+    "Description": "Go to the next song",
+    "Responses": {
+      "NextSuccess": ":fast_forward:"
+    }
+  },
+  "PreviousCommand": {
+    "Alias": "previous",
+    "Description": "Go back to the previous song",
+    "Responses": {
+      "EmptyQueue": "No queue history.",
+      "PreviousSuccess": ":rewind:"
+    }
+  },
+  "RemoveCommand": {
+    "Alias": "remove",
+    "Description": "Remove a song from queue",
+    "PositionOption": {
+      "Alias": "position",
+      "Description": "Queue position of the song to remove"
+    },
+    "Responses": {
+      "InvalidPosition": "Invalid position value.",
+      "RemoveSuccess": ":gun:"
+    }
+  },
+  "LoginCommand": {
+    "Alias": "login",
+    "Description": "Connect the bot to your spotify account",
+    "Responses": {
+      "LoginPrompt": "Click here to login!",
+      "AlreadyLoggedIn": "Spotify session is already logged in. Log out now?",
+      "LoginSuccess": "Login successful :tada:",
+      "LoginFail": "Login failed :(",
+      "LoginCancel": ":+1:"
+    }
+  },
+  "QuizCommand": {
+    "Alias": "quiz",
+    "Description": "Start a spotify quiz game",
+    "PlaylistOption": {
+      "Alias": "playlist",
+      "Description": "Link to public playlist to use"
+    },
+    "QuestionsOption": {
+      "Alias": "questions",
+      "Description": "Number of questions to play (default = 10)"
+    }
+  },
+  "ListifyCommand": {
+    "Alias": "listify",
+    "Description": "List all songs played this session."
+  }
+}
