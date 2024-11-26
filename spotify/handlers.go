@@ -502,6 +502,16 @@ func (p *Plugin) playMessageHandler(discordSession *discordgo.Session, i *discor
 			return
 		}
 
+		if slices.Contains(p.config.BannedTracks, spotTrack.Id()) {
+			utils.InteractionResponse(discordSession, i.Interaction).
+				Ephemeral().
+				Message(p.config.PlayCommand.Responses.BannedTrack).
+				EditWithLog(logger)
+
+			spotSession.playInteractions.Delete(uid)
+			return
+		}
+
 		t := &track{
 			Track: spotTrack,
 			metadata: map[string]string{
@@ -659,6 +669,10 @@ func (p *Plugin) playlistMessageHandler(discordSession *discordgo.Session, i *di
 		}
 
 		for _, trackId := range trackIds {
+			if slices.Contains(p.config.BannedTracks, trackId) {
+				continue
+			}
+
 			spotTrack, err := spotSession.session.GetTrackById(trackId)
 			if err != nil {
 				logger.Error("failed to get track by id",

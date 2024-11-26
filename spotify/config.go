@@ -16,6 +16,7 @@ type Config struct {
 	SpotifyClientId     string   `json:"-"`
 	SpotifyClientSecret string   `json:"-"`
 	RestrictSkips       string   `json:"RestrictSkips"`
+	BannedTracks        []string `json:"BannedTracks"`
 	GlobalResponses     struct {
 		GenericError     string `json:"GenericError"`
 		NotInVoice       string `json:"NotInVoice"`
@@ -35,6 +36,7 @@ type Config struct {
 			NoTracksFound    string `json:"NoTracksFound"`
 			EndOfList        string `json:"EndOfList"`
 			LoadingPlaylist  string `json:"LoadingPlaylist"`
+			BannedTrack      string `json:"BannedTrack"`
 		} `json:"Responses"`
 	} `json:"PlayCommand"`
 	QueueCommand struct {

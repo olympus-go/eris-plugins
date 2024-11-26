@@ -4,6 +4,7 @@
   "AdminIds": [],
   "OAuthCallback": "http://localhost:8888/callback",
   "RestrictSkips": "false",
+  "BannedTracks": [],
   "GlobalResponses": {
     "GenericError": "Something went wrong.",
     "NotInVoice": "I don't think I'm in a voice chat here. ¯\\_(ツ)_/¯",
@@ -31,7 +32,8 @@
       "ListNotAvailable": "This song list is no longer available. Try searching again.",
       "NoTracksFound": "No tracks found.",
       "EndOfList": "That's all of them! Try searching again.",
-      "LoadingPlaylist": "Queueing up playlist <a:loadingdots:1079304806881050644>"
+      "LoadingPlaylist": "Queueing up playlist <a:loadingdots:1079304806881050644>",
+      "BannedTrack": "That song is banned on this server."
     }
   },
   "QueueCommand": {
