@@ -267,10 +267,11 @@ func setConfig(t any, key string, value string, truncate bool) error {
 					return fmt.Errorf("string slices should be delimited with a comma")
 				}
 
+				currentValues, _ := currentValue[field].([]string)
 				var prunedValues []string
 				for vIndex := range values {
 					trimmedValue := strings.TrimSpace(values[vIndex])
-					if len(trimmedValue) > 0 {
+					if len(trimmedValue) > 0 && !slices.Contains(currentValues, trimmedValue) {
 						prunedValues = append(prunedValues, trimmedValue)
 					}
 				}
@@ -278,7 +279,6 @@ func setConfig(t any, key string, value string, truncate bool) error {
 				if truncate {
 					currentValue[field] = prunedValues
 				} else {
-					currentValues, _ := currentValue[field].([]string)
 					currentValue[field] = append(currentValues, prunedValues...)
 				}
 			case *[]string:
@@ -294,18 +294,18 @@ func setConfig(t any, key string, value string, truncate bool) error {
 					return fmt.Errorf("string slices should be delimited with a comma")
 				}
 
+				currentValues, _ := currentValue[field].(*[]string)
 				var prunedValues []string
 				for vIndex := range values {
 					trimmedValue := strings.TrimSpace(values[vIndex])
-					if len(trimmedValue) > 0 {
+					if len(trimmedValue) > 0 && !slices.Contains(*currentValues, trimmedValue) {
 						prunedValues = append(prunedValues, trimmedValue)
 					}
-				}
 
+				}
 				if truncate {
 					currentValue[field] = &prunedValues
 				} else {
-					currentValues, _ := currentValue[field].(*[]string)
 					appendedValues := append(*currentValues, prunedValues...)
 					currentValue[field] = &appendedValues
 				}
