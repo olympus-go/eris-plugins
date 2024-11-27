@@ -14,7 +14,6 @@ type Plugin struct {
 	configs  *threadsafe.Map[string, *configReloader]
 	adminIds []string
 	logger   *slog.Logger
-	//logger   zerolog.Logger
 }
 
 type configReloader struct {
@@ -116,6 +115,12 @@ func ConfigApplicationCommandOptions(name string) []*discordgo.ApplicationComman
 							Description: "The new desired value",
 							Type:        discordgo.ApplicationCommandOptionString,
 							Required:    true,
+						},
+						{
+							Name:        "truncate",
+							Description: "Truncate list values instead of append",
+							Type:        discordgo.ApplicationCommandOptionBoolean,
+							Required:    false,
 						},
 					},
 				},

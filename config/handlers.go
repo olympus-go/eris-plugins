@@ -149,6 +149,12 @@ func (p *Plugin) configHandler(discordSession *discordgo.Session, i *discordgo.I
 				return
 			}
 
+			truncateOption := utils.GetCommandOption(*actionOption, "set", "truncate")
+			truncate := false
+			if truncateOption != nil {
+				truncate = truncateOption.BoolValue()
+			}
+
 			key := keyOption.StringValue()
 			value := valueOption.StringValue()
 
@@ -157,7 +163,7 @@ func (p *Plugin) configHandler(discordSession *discordgo.Session, i *discordgo.I
 				value = ""
 			}
 
-			if err := setConfig(config.config, key, value); err != nil && errors.Is(err, ErrFieldNotExist) {
+			if err := setConfig(config.config, key, value, truncate); err != nil && errors.Is(err, ErrFieldNotExist) {
 				utils.InteractionResponse(discordSession, i.Interaction).
 					Ephemeral().
 					Message(fmt.Sprintf("I don't know what \"%s\" is.", key)).
@@ -220,7 +226,7 @@ func getConfig(t any, key string) (any, error) {
 	return nil, ErrFieldNotExist
 }
 
-func setConfig(t any, key string, value string) error {
+func setConfig(t any, key string, value string, truncate bool) error {
 	v := make(map[string]any)
 
 	if err := mapstructure.Decode(t, &v); err != nil {
@@ -249,23 +255,60 @@ func setConfig(t any, key string, value string) error {
 			case string:
 				currentValue[field] = value
 			case []string:
+				if len(value) == 0 {
+					if truncate {
+						currentValue[field] = []string{}
+					}
+					break
+				}
+
 				values := strings.Split(value, ",")
 				if len(values) < 1 {
 					return fmt.Errorf("string slices should be delimited with a comma")
 				}
+
+				var prunedValues []string
 				for vIndex := range values {
-					values[vIndex] = strings.TrimSpace(values[vIndex])
+					trimmedValue := strings.TrimSpace(values[vIndex])
+					if len(trimmedValue) > 0 {
+						prunedValues = append(prunedValues, trimmedValue)
+					}
 				}
-				currentValue[field] = values
+
+				if truncate {
+					currentValue[field] = prunedValues
+				} else {
+					currentValues, _ := currentValue[field].([]string)
+					currentValue[field] = append(currentValues, prunedValues...)
+				}
 			case *[]string:
+				if len(value) == 0 {
+					if truncate {
+						currentValue[field] = &[]string{}
+					}
+					break
+				}
+
 				values := strings.Split(value, ",")
 				if len(values) < 1 {
 					return fmt.Errorf("string slices should be delimited with a comma")
 				}
+
+				var prunedValues []string
 				for vIndex := range values {
-					values[vIndex] = strings.TrimSpace(values[vIndex])
+					trimmedValue := strings.TrimSpace(values[vIndex])
+					if len(trimmedValue) > 0 {
+						prunedValues = append(prunedValues, trimmedValue)
+					}
 				}
-				currentValue[field] = &values
+
+				if truncate {
+					currentValue[field] = &prunedValues
+				} else {
+					currentValues, _ := currentValue[field].(*[]string)
+					appendedValues := append(*currentValues, prunedValues...)
+					currentValue[field] = &appendedValues
+				}
 			default:
 				return fmt.Errorf("failed to decode config: config field must be a string")
 			}
