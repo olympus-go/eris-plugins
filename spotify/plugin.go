@@ -7,7 +7,6 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/eolso/threadsafe"
-	"github.com/olympus-go/eris/utils"
 )
 
 const queryLimit = 10
@@ -58,127 +57,18 @@ func (p *Plugin) Commands() map[string]*discordgo.ApplicationCommand {
 		Description: p.config.Description,
 		Type:        discordgo.ChatApplicationCommand,
 		Options: []*discordgo.ApplicationCommandOption{
-			{
-				Name:        p.config.PlayCommand.Alias,
-				Description: p.config.PlayCommand.Description,
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Options: []*discordgo.ApplicationCommandOption{
-					{
-						Name:        p.config.PlayCommand.QueryOption.Alias,
-						Description: p.config.PlayCommand.QueryOption.Description,
-						Type:        discordgo.ApplicationCommandOptionString,
-						Required:    true,
-					},
-					{
-						Name:        p.config.PlayCommand.PositionOption.Alias,
-						Description: p.config.PlayCommand.PositionOption.Description,
-						Type:        discordgo.ApplicationCommandOptionInteger,
-						Required:    false,
-						MinValue:    utils.PointerTo(1.0),
-					},
-					{
-						Name:        p.config.PlayCommand.RemixOption.Alias,
-						Description: p.config.PlayCommand.RemixOption.Description,
-						Type:        discordgo.ApplicationCommandOptionInteger,
-						Required:    false,
-						Choices: []*discordgo.ApplicationCommandOptionChoice{
-							{
-								Name:  "nightcore",
-								Value: nightcoreFrequency,
-							},
-							{
-								Name:  "chopped and screwed",
-								Value: choppedFrequency,
-							},
-						},
-					},
-				},
-			},
-			{
-				Name:        p.config.QueueCommand.Alias,
-				Description: p.config.QueueCommand.Description,
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-			},
-			{
-				Name:        p.config.JoinCommand.Alias,
-				Description: p.config.JoinCommand.Description,
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-			},
-			{
-				Name:        p.config.LeaveCommand.Alias,
-				Description: p.config.LeaveCommand.Description,
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Options: []*discordgo.ApplicationCommandOption{
-					{
-						Name:        p.config.LeaveCommand.KeepOption.Alias,
-						Description: p.config.LeaveCommand.KeepOption.Description,
-						Type:        discordgo.ApplicationCommandOptionBoolean,
-						Required:    false,
-					},
-				},
-			},
-			{
-				Name:        p.config.ResumeCommand.Alias,
-				Description: p.config.ResumeCommand.Description,
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-			},
-			{
-				Name:        p.config.PauseCommand.Alias,
-				Description: p.config.PauseCommand.Description,
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-			},
-			{
-				Name:        p.config.NextCommand.Alias,
-				Description: p.config.NextCommand.Description,
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-			},
-			{
-				Name:        p.config.PreviousCommand.Alias,
-				Description: p.config.PreviousCommand.Description,
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-			},
-			{
-				Name:        p.config.RemoveCommand.Alias,
-				Description: p.config.RemoveCommand.Description,
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Options: []*discordgo.ApplicationCommandOption{
-					{
-						Name:        p.config.RemoveCommand.PositionOption.Alias,
-						Description: p.config.RemoveCommand.PositionOption.Description,
-						Type:        discordgo.ApplicationCommandOptionInteger,
-						Required:    true,
-					},
-				},
-			},
-			{
-				Name:        p.config.LoginCommand.Alias,
-				Description: p.config.LoginCommand.Description,
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-			},
-			{
-				Name:        p.config.QuizCommand.Alias,
-				Description: p.config.QuizCommand.Description,
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Options: []*discordgo.ApplicationCommandOption{
-					{
-						Name:        p.config.QuizCommand.PlaylistOption.Alias,
-						Description: p.config.QuizCommand.PlaylistOption.Description,
-						Type:        discordgo.ApplicationCommandOptionString,
-						Required:    true,
-					},
-					{
-						Name:        p.config.QuizCommand.QuestionsOption.Alias,
-						Description: p.config.QuizCommand.QuestionsOption.Description,
-						Type:        discordgo.ApplicationCommandOptionInteger,
-						Required:    false,
-					},
-				},
-			},
-			{
-				Name:        p.config.ListifyCommand.Alias,
-				Description: p.config.ListifyCommand.Description,
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-			},
+			p.playCommand(),
+			p.queueCommand(),
+			p.joinCommand(),
+			p.leaveCommand(),
+			p.resumeCommand(),
+			p.pauseCommand(),
+			p.nextCommand(),
+			p.previousCommand(),
+			p.removeCommand(),
+			p.loginCommand(),
+			p.quizCommand(),
+			p.listifyCommand(),
 		},
 	}
 
