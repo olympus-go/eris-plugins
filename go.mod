@@ -6,7 +6,7 @@ require (
 	github.com/bwmarrin/discordgo v0.28.1
 	github.com/eolso/threadsafe v0.0.0-20240414010420-7b1dc37c440b
 	github.com/mitchellh/mapstructure v1.5.0
-	github.com/olympus-go/apollo v0.0.0-20240108023004-e10d5ab12784
+	github.com/olympus-go/apollo v0.0.0-20241216021921-13eba97a8fc7
 	github.com/olympus-go/eris v0.0.0-20240108073537-59c359b8974d
 	golang.org/x/exp v0.0.0-20240604190554-fc45aab8b7f8
 )

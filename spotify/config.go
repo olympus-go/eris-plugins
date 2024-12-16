@@ -18,6 +18,7 @@ type Config struct {
 	RestrictSkips       string   `json:"RestrictSkips"`
 	BannedTracks        []string `json:"BannedTracks"`
 	GlobalResponses     struct {
+		GenericSuccess   string `json:"GenericSuccess"`
 		GenericError     string `json:"GenericError"`
 		NotInVoice       string `json:"NotInVoice"`
 		NotLoggedIn      string `json:"NotLoggedIn"`
@@ -55,9 +56,8 @@ type Config struct {
 		} `json:"Responses"`
 	} `json:"JoinCommand"`
 	LeaveCommand struct {
-		Alias       string              `json:"Alias"`
-		Description string              `json:"Description"`
-		KeepOption  CommandOptionConfig `json:"KeepOption"`
+		Alias       string `json:"Alias"`
+		Description string `json:"Description"`
 		Responses   struct {
 			LeaveSuccess string `json:"LeaveSuccess"`
 		} `json:"Responses"`
@@ -121,6 +121,14 @@ type Config struct {
 		Alias       string `json:"Alias"`
 		Description string `json:"Description"`
 	} `json:"ListifyCommand"`
+	ClearCommand struct {
+		Alias       string `json:"Alias"`
+		Description string `json:"Description"`
+	} `json:"ClearCommand"`
+	ShuffleCommand struct {
+		Alias       string `json:"Alias"`
+		Description string `json:"Description"`
+	} `json:"ShuffleCommand"`
 }
 
 type CommandOptionConfig struct {

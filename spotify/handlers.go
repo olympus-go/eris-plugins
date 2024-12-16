@@ -2,6 +2,7 @@ package spotify
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -65,6 +66,10 @@ func (p *Plugin) spotifyHandler(discordSession *discordgo.Session, i *discordgo.
 			p.quizHandler(discordSession, i)
 		case "listify":
 			p.listifyHandler(discordSession, i)
+		case "clear":
+			p.clearHandler(discordSession, i)
+		case "shuffle":
+			p.shuffleHandler(discordSession, i)
 		}
 	case discordgo.InteractionMessageComponent:
 		switch {
@@ -86,6 +91,11 @@ func (p *Plugin) joinHandler(discordSession *discordgo.Session, i *discordgo.Int
 		slog.Any("user", utils.GetInteractionUser(i.Interaction)),
 	)
 
+	utils.InteractionResponse(discordSession, i.Interaction).
+		Ephemeral().
+		Deferred().
+		SendWithLog(logger)
+
 	// If the session for the guild doesn't already exist, create it
 	spotSession, ok := p.sessions.Get(i.Interaction.GuildID)
 	if !ok {
@@ -98,64 +108,29 @@ func (p *Plugin) joinHandler(discordSession *discordgo.Session, i *discordgo.Int
 		p.sessions.Set(i.Interaction.GuildID, spotSession)
 	}
 
-	voiceId := utils.GetInteractionUserVoiceStateId(discordSession, i.Interaction)
-
-	if voiceId == "" {
+	err := spotSession.joinVoice(discordSession, i.Interaction)
+	switch {
+	case errors.Is(err, ErrNotInVoice):
 		utils.InteractionResponse(discordSession, i.Interaction).
 			Ephemeral().
 			Message(p.config.GlobalResponses.NotInVoice).
-			SendWithLog(logger)
+			EditWithLog(logger)
 		return
-	}
-
-	if spotSession.voiceConnection != nil && spotSession.voiceConnection.ChannelID == voiceId {
+	case errors.Is(err, ErrAlreadyInVoice):
 		utils.InteractionResponse(discordSession, i.Interaction).
 			Ephemeral().
 			Message(p.config.JoinCommand.Responses.AlreadyJoined).
-			SendWithLog(logger)
+			EditWithLog(logger)
 		return
-	}
-
-	utils.InteractionResponse(discordSession, i.Interaction).
-		Ephemeral().
-		Deferred().
-		SendWithLog(logger)
-
-	if spotSession.voiceConnection != nil {
-		spotSession.player.Pause()
-		spotSession.stop()
-		if err := spotSession.voiceConnection.Disconnect(); err != nil {
-			logger.Error("failed to disconnect from voice channel", slog.String("error", err.Error()))
-			utils.InteractionResponse(discordSession, i.Interaction).
-				Ephemeral().
-				Message(p.config.GlobalResponses.GenericError).
-				EditWithLog(logger)
-			return
-		}
-	}
-
-	// Attempt to connect to the voice channel. Sometimes this will timeout after joining, so retry a few times if that
-	// happens.
-	var err error
-	for retries := 0; retries < 3; retries++ {
-		spotSession.voiceConnection, err = discordSession.ChannelVoiceJoin(i.GuildID, voiceId, false, true)
-		if err == nil {
-			break
-		}
-		_ = spotSession.voiceConnection.Disconnect()
-	}
-	if err != nil {
+	case errors.Is(err, nil):
+	default:
 		logger.Error("failed to join voice channel", slog.String("error", err.Error()))
-		_ = spotSession.voiceConnection.Disconnect()
 		utils.InteractionResponse(discordSession, i.Interaction).
 			Ephemeral().
 			Message(p.config.GlobalResponses.GenericError).
 			EditWithLog(logger)
 		return
 	}
-
-	go spotSession.start()
-	spotSession.player.Play()
 
 	utils.InteractionResponse(discordSession, i.Interaction).
 		Ephemeral().
@@ -169,63 +144,50 @@ func (p *Plugin) leaveHandler(discordSession *discordgo.Session, i *discordgo.In
 		slog.Any("user", utils.GetInteractionUser(i.Interaction)),
 	)
 
+	utils.InteractionResponse(discordSession, i.Interaction).
+		Ephemeral().
+		Deferred().
+		SendWithLog(logger)
+
 	leaveOption := utils.GetCommandOption(i.ApplicationCommandData(), "spotify", "leave")
 	if leaveOption == nil {
 		utils.InteractionResponse(discordSession, i.Interaction).
 			Ephemeral().
 			Message(p.config.GlobalResponses.GenericError).
-			SendWithLog(logger)
+			EditWithLog(logger)
 		return
 	}
 
 	spotSession, ok := p.sessions.Get(i.Interaction.GuildID)
-	if !ok || spotSession.voiceConnection == nil {
+	if !ok {
 		utils.InteractionResponse(discordSession, i.Interaction).
 			Ephemeral().
 			Message(p.config.GlobalResponses.NotInVoice).
-			SendWithLog(logger)
+			EditWithLog(logger)
 		return
 	}
 
-	spotSession.player.Pause()
-
-	if spotSession.quizGame != nil {
-		spotSession.quizGame.cancelFunc()
-		spotSession.quizGame = nil
-	}
-
-	if err := spotSession.voiceConnection.Disconnect(); err != nil {
-		logger.Error("failed to disconnect from voice channel", slog.String("error", err.Error()))
+	err := spotSession.leaveVoice()
+	switch {
+	case errors.Is(err, ErrNotInVoice):
+		utils.InteractionResponse(discordSession, i.Interaction).
+			Ephemeral().
+			Message(p.config.GlobalResponses.NotInVoice).
+			EditWithLog(logger)
+		return
+	case errors.Is(err, nil):
+	default:
 		utils.InteractionResponse(discordSession, i.Interaction).
 			Ephemeral().
 			Message(p.config.GlobalResponses.GenericError).
-			SendWithLog(logger)
+			EditWithLog(logger)
 		return
-	}
-
-	keep := false
-	if keepOption := utils.GetCommandOption(*leaveOption, "leave", "keep"); keepOption != nil {
-		keep = keepOption.BoolValue()
-	}
-
-	// TODO make this configurable + better
-	// Save session history somewhere
-	//for _, playable := range spotSession.player.List(true) {
-	//os.Open("")
-	//playable.Name()
-	//}
-
-	spotSession.voiceConnection = nil
-	if !keep {
-		spotSession.player.Empty()
-		spotSession.stop()
-		p.sessions.Delete(i.Interaction.GuildID)
 	}
 
 	utils.InteractionResponse(discordSession, i.Interaction).
 		Ephemeral().
 		Message(p.config.LeaveCommand.Responses.LeaveSuccess).
-		SendWithLog(logger)
+		EditWithLog(logger)
 }
 
 func (p *Plugin) playHandler(discordSession *discordgo.Session, i *discordgo.InteractionCreate) {
@@ -1563,6 +1525,55 @@ func (p *Plugin) listifyHandler(discordSession *discordgo.Session, i *discordgo.
 		Ephemeral().
 		Message(message).
 		FollowUpCreateWithLog(logger)
+}
+
+func (p *Plugin) clearHandler(discordSession *discordgo.Session, i *discordgo.InteractionCreate) {
+	logger := p.logger.With(
+		slog.String("command", utils.CommandDataString(i.ApplicationCommandData())),
+		slog.Any("user", utils.GetInteractionUser(i.Interaction)),
+	)
+
+	spotSession, ok := p.sessions.Get(i.Interaction.GuildID)
+	if !ok {
+		utils.InteractionResponse(discordSession, i.Interaction).
+			Ephemeral().
+			Message(p.config.GlobalResponses.GenericError).
+			SendWithLog(logger)
+		return
+	}
+
+	spotSession.player.Empty()
+
+	utils.InteractionResponse(discordSession, i.Interaction).
+		Ephemeral().
+		Message(p.config.GlobalResponses.GenericSuccess).
+		SendWithLog(logger)
+}
+
+func (p *Plugin) shuffleHandler(discordSession *discordgo.Session, i *discordgo.InteractionCreate) {
+	logger := p.logger.With(
+		slog.String("command", utils.CommandDataString(i.ApplicationCommandData())),
+		slog.Any("user", utils.GetInteractionUser(i.Interaction)),
+	)
+
+	spotSession, ok := p.sessions.Get(i.Interaction.GuildID)
+	if !ok {
+		utils.InteractionResponse(discordSession, i.Interaction).
+			Ephemeral().
+			Message(p.config.GlobalResponses.GenericError).
+			SendWithLog(logger)
+		return
+	}
+
+	spotSession.player.Shuffle(false)
+
+	utils.InteractionResponse(discordSession, i.Interaction).
+		Ephemeral().
+		Message(p.config.GlobalResponses.GenericSuccess).
+		SendWithLog(logger)
+
+	//spotSession.player.
+
 }
 
 func (p *Plugin) fileUploadHandler(discordSession *discordgo.Session, message *discordgo.MessageCreate) {

@@ -22,6 +22,8 @@ github.com/mitchellh/mapstructure v1.5.0 h1:jeMsZIYE/09sWLaz43PL7Gy6RuMjD2eJVyua
 github.com/mitchellh/mapstructure v1.5.0/go.mod h1:bFUtVrKA4DC2yAKiSyO/QUcy7e+RRV2QTWOzhPopBRo=
 github.com/olympus-go/apollo v0.0.0-20240108023004-e10d5ab12784 h1:4LfU0WXztWX5mVHLZ++ohxpo47Gzha8kpMUj2TRerfo=
 github.com/olympus-go/apollo v0.0.0-20240108023004-e10d5ab12784/go.mod h1:U/LVsk0Md/1ia1c0iElAqqLxtM2usX2BplSAlYCN7KQ=
+github.com/olympus-go/apollo v0.0.0-20241216021921-13eba97a8fc7 h1:80FgwsD4hITIveu7SzWbOtx7Cm1DQ/o9lTRa/xZLQU8=
+github.com/olympus-go/apollo v0.0.0-20241216021921-13eba97a8fc7/go.mod h1:RVU9vRuZGtHcyLsO/p0b2i1C5lDacWd6CqxrPglj1lw=
 github.com/olympus-go/eris v0.0.0-20240108073537-59c359b8974d h1:1x3IvYqgcWKMYPM1sUe9OPTQvYdxDOJ498gueiiV8zE=
 github.com/olympus-go/eris v0.0.0-20240108073537-59c359b8974d/go.mod h1:mpumcv2q4c8yviEfRXyyeRO53WDU7B1CCy4kUtqtJb8=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=

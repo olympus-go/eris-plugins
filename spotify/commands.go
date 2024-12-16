@@ -65,14 +65,6 @@ func (p *Plugin) leaveCommand() *discordgo.ApplicationCommandOption {
 		Name:        p.config.LeaveCommand.Alias,
 		Description: p.config.LeaveCommand.Description,
 		Type:        discordgo.ApplicationCommandOptionSubCommand,
-		Options: []*discordgo.ApplicationCommandOption{
-			{
-				Name:        p.config.LeaveCommand.KeepOption.Alias,
-				Description: p.config.LeaveCommand.KeepOption.Description,
-				Type:        discordgo.ApplicationCommandOptionBoolean,
-				Required:    false,
-			},
-		},
 	}
 }
 
@@ -158,6 +150,22 @@ func (p *Plugin) listifyCommand() *discordgo.ApplicationCommandOption {
 	return &discordgo.ApplicationCommandOption{
 		Name:        p.config.ListifyCommand.Alias,
 		Description: p.config.ListifyCommand.Description,
+		Type:        discordgo.ApplicationCommandOptionSubCommand,
+	}
+}
+
+func (p *Plugin) clearCommand() *discordgo.ApplicationCommandOption {
+	return &discordgo.ApplicationCommandOption{
+		Name:        p.config.ClearCommand.Alias,
+		Description: p.config.ClearCommand.Description,
+		Type:        discordgo.ApplicationCommandOptionSubCommand,
+	}
+}
+
+func (p *Plugin) shuffleCommand() *discordgo.ApplicationCommandOption {
+	return &discordgo.ApplicationCommandOption{
+		Name:        p.config.ShuffleCommand.Alias,
+		Description: p.config.ShuffleCommand.Description,
 		Type:        discordgo.ApplicationCommandOptionSubCommand,
 	}
 }

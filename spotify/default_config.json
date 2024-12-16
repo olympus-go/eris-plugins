@@ -6,6 +6,7 @@
   "RestrictSkips": "false",
   "BannedTracks": [],
   "GlobalResponses": {
+    "GenericSuccess": ":+1:",
     "GenericError": "Something went wrong.",
     "NotInVoice": "I don't think I'm in a voice chat here. ¯\\_(ツ)_/¯",
     "NotLoggedIn": "Login first before playing.",
@@ -129,5 +130,13 @@
   "ListifyCommand": {
     "Alias": "listify",
     "Description": "List all songs played this session."
+  },
+  "ClearCommand": {
+    "Alias": "clear",
+    "Description": "Clear the song queue."
+  },
+  "ShuffleCommand": {
+    "Alias": "shuffle",
+    "Description": "Shuffle the song queue."
   }
 }
