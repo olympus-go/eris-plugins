@@ -1,15 +1,18 @@
 package spotify
 
 import (
+	"context"
 	"log/slog"
 	"os"
 	"regexp"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/eolso/threadsafe"
 )
 
 const queryLimit = 10
+const sessionTimeout = 5 * time.Minute
 
 var alphanumericRegex *regexp.Regexp
 
@@ -28,6 +31,7 @@ func NewPlugin(config *Config, h slog.Handler) *Plugin {
 	}
 
 	plugin.fileUploadHandlerInit()
+	_ = plugin.pruneSessions(context.Background())
 
 	return &plugin
 }
@@ -69,6 +73,8 @@ func (p *Plugin) Commands() map[string]*discordgo.ApplicationCommand {
 			p.loginCommand(),
 			p.quizCommand(),
 			p.listifyCommand(),
+			p.clearCommand(),
+			p.shuffleCommand(),
 		},
 	}
 
@@ -98,4 +104,28 @@ func (p *Plugin) fileUploadHandlerInit() {
 			slog.String("error", err.Error()),
 		)
 	}
+}
+
+func (p *Plugin) pruneSessions(ctx context.Context) context.CancelFunc {
+	c, cancel := context.WithCancel(ctx)
+
+	go func() {
+		for {
+			select {
+			case <-c.Done():
+				return
+			case <-time.Tick(1 * time.Minute):
+				k, v := p.sessions.Items()
+				for i := 0; i < len(k); i++ {
+					if v[i].voiceConnection == nil {
+						if v[i].timeLastJoined.Before(time.Now().Add(-1 * sessionTimeout)) {
+							p.sessions.Delete(k[i])
+						}
+					}
+				}
+			}
+		}
+	}()
+
+	return cancel
 }

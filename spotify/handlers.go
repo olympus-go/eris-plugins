@@ -104,7 +104,7 @@ func (p *Plugin) joinHandler(discordSession *discordgo.Session, i *discordgo.Int
 		sessionConfig := spotify.DefaultSessionConfig()
 		sessionConfig.ConfigHomeDir = filepath.Join(sessionConfig.ConfigHomeDir, i.Interaction.GuildID)
 		sessionConfig.OAuthCallback = p.config.SpotifyCallbackUrl
-		spotSession = newSession(sessionConfig, p.logger.Handler(), p.config.AdminIds...)
+		spotSession = newSession(i.Interaction.GuildID, sessionConfig, p.logger.Handler(), p.config.AdminIds...)
 		p.sessions.Set(i.Interaction.GuildID, spotSession)
 	}
 
@@ -997,7 +997,7 @@ func (p *Plugin) loginHandler(discordSession *discordgo.Session, i *discordgo.In
 		sessionConfig := spotify.DefaultSessionConfig()
 		sessionConfig.ConfigHomeDir = filepath.Join(sessionConfig.ConfigHomeDir, i.Interaction.GuildID)
 		sessionConfig.OAuthCallback = p.config.SpotifyCallbackUrl
-		spotSession = newSession(sessionConfig, p.logger.Handler(), p.config.AdminIds...)
+		spotSession = newSession(i.Interaction.GuildID, sessionConfig, p.logger.Handler(), p.config.AdminIds...)
 		p.sessions.Set(i.Interaction.GuildID, spotSession)
 	}
 
@@ -1065,7 +1065,7 @@ func (p *Plugin) loginMessageHandler(discordSession *discordgo.Session, i *disco
 		sessionConfig := spotify.DefaultSessionConfig()
 		sessionConfig.ConfigHomeDir = filepath.Join(sessionConfig.ConfigHomeDir, i.Interaction.GuildID)
 		sessionConfig.OAuthCallback = p.config.SpotifyCallbackUrl
-		spotSession = newSession(sessionConfig, p.logger.Handler(), p.config.AdminIds...)
+		spotSession = newSession(i.Interaction.GuildID, sessionConfig, p.logger.Handler(), p.config.AdminIds...)
 		p.sessions.Set(i.Interaction.GuildID, spotSession)
 	}
 
@@ -1130,7 +1130,7 @@ func (p *Plugin) quizHandler(discordSession *discordgo.Session, i *discordgo.Int
 		sessionConfig := spotify.DefaultSessionConfig()
 		sessionConfig.ConfigHomeDir = filepath.Join(sessionConfig.ConfigHomeDir, i.Interaction.GuildID)
 		sessionConfig.OAuthCallback = p.config.SpotifyCallbackUrl
-		spotSession = newSession(sessionConfig, p.logger.Handler(), p.config.AdminIds...)
+		spotSession = newSession(i.Interaction.GuildID, sessionConfig, p.logger.Handler(), p.config.AdminIds...)
 		p.sessions.Set(i.Interaction.GuildID, spotSession)
 	}
 
@@ -1571,9 +1571,6 @@ func (p *Plugin) shuffleHandler(discordSession *discordgo.Session, i *discordgo.
 		Ephemeral().
 		Message(p.config.GlobalResponses.GenericSuccess).
 		SendWithLog(logger)
-
-	//spotSession.player.
-
 }
 
 func (p *Plugin) fileUploadHandler(discordSession *discordgo.Session, message *discordgo.MessageCreate) {
